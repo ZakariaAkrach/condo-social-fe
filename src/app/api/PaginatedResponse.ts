@@ -7,5 +7,5 @@ export interface PaginatedResponse<T> {
     pageSize: number;
     totalPages: number;
     totalElements: number;
-    last: boolean;
+    lastPage: boolean;
 }
