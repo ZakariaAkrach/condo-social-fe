@@ -55,7 +55,7 @@ export default function AdminDashboardPage() {
 
       <AdminAnalyzTicketsDashboard />
 
-      <AdminRecentActivities condominiums={condominiums} limit={10} />
+      <AdminRecentActivities condominiums={condominiums} limit={3} />
     </div>
   );
 }

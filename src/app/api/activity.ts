@@ -1,4 +1,3 @@
-// lib/api/activity.ts
 import { api } from "@/lib/axios";
 import type { PaginatedResponse } from "./PaginatedResponse";
 
@@ -17,29 +16,34 @@ export const activityApi = {
         activityType?: string;
         entityType?: string;
         description?: string;
-        createdAt?: Date;
+        fromCreatedAt?: string;
+        toCreatedAt?: string;
         condominiumIds?: string[];
         page?: number;
         size?: number;
         sortBy?: string;
         ascending?: boolean;
     } = {}) => {
+        const queryParams: Record<string, any> = {
+            page: params.page ?? 0,
+            size: params.size ?? 10,
+            sortBy: params.sortBy ?? "createdAt",
+            ascending: params.ascending ?? false,
+        };
+
+        if (params.activityType) queryParams.activityType = params.activityType;
+        if (params.entityType) queryParams.entityType = params.entityType;
+        if (params.description) queryParams.description = params.description;
+        if (params.fromCreatedAt) queryParams.fromCreatedAt = params.fromCreatedAt;
+        if (params.toCreatedAt) queryParams.toCreatedAt = params.toCreatedAt;
+        if (params.condominiumIds?.length) {
+            queryParams.condominiumIds = params.condominiumIds.join(",");
+        }
+
         const response = await api.get<PaginatedResponse<FetchActivityResponseDto>>(
             `${defaultUrl}/fetch`,
-            {
-                params: {
-                    activityType: params.activityType || "",
-                    entityType: params.entityType || "",
-                    description: params.description || "",
-                    createdAt: params.createdAt?.toISOString() || null,
-                    condominiumIds: params.condominiumIds?.join(",") || "",
-                    page: params.page ?? 0,
-                    size: params.size ?? 10,
-                    sortBy: params.sortBy ?? "createdAt",
-                    ascending: params.ascending ?? false,
-                },
-            }
+            { params: queryParams }
         );
-        return response.data;
+        return response.data; // contiene data, totalPages, totalElements, last, ecc.
     },
 };
