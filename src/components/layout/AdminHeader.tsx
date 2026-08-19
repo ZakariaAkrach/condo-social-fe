@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Bell, ChevronLeft, ChevronRight, Menu } from "lucide-react"
+import { Menu } from "lucide-react"
 import { useAuth } from "@/auth/AuthProvider"
 import ThemeToggle from "../common/ThemeToggle"
 
@@ -35,11 +35,6 @@ export function AdminHeader({ isCollapsed, setIsCollapsed }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
