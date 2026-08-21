@@ -259,7 +259,8 @@ export default function LandingPage() {
                 È gratuito?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                Sì, per condomini fino a 20 unità. Oltre o per funzionalità Pro (fornitori, report) c’è un piano a pagamento trasparente.
+                Sì, hai 30 giorni di prova gratuita con tutte le funzionalità, senza impegno.
+                Dopo la prova puoi scegliere il piano più adatto al tuo condominio.
               </AccordionContent>
             </AccordionItem>
 
@@ -268,7 +269,9 @@ export default function LandingPage() {
                 I dati sono sicuri?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                Certo. Crittografia end‑to‑end, GDPR e nessuna condivisione con terze parti. I tuoi dati sono tuoi.
+                I dati viaggiano e sono salvati con crittografia: HTTPS/TLS in transito.
+                <br/> Ogni condominio ha il proprio spazio separato: i dati di un condominio non sono visibili agli altri.
+                <br/> Non vendiamo dati a terzi. Puoi richiedere in ogni momento l’eliminazione definitiva dei dati del tuo condominio.
               </AccordionContent>
             </AccordionItem>
 
@@ -277,7 +280,8 @@ export default function LandingPage() {
                 Servono competenze tecniche?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                No. È pensato per essere usato da chiunque, anche senza esperienza. L’amministratore può delegare a un collaboratore.
+                No. È pensato per essere usato da chiunque, anche senza esperienza.
+                L’amministratore può invitare residenti e collaboratori in pochi click.
               </AccordionContent>
             </AccordionItem>
 
@@ -286,7 +290,8 @@ export default function LandingPage() {
                 Come gestisco le spese?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                Carichi rendiconti, allegati e invii notifiche. I pagamenti online arriveranno a breve.
+                Puoi registrare le spese, caricare allegati e inviare notifiche ai residenti.
+                I pagamenti online arriveranno a breve.
               </AccordionContent>
             </AccordionItem>
           </Accordion>
