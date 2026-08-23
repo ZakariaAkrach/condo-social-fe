@@ -15,6 +15,7 @@ import AdminCondominiListPage from './pages/private/AdminCondominiListPage'
 import AdminCondominiumDetailPage from './pages/private/AdminCondominiumDetailPage'
 import InviteNewMemberPage from './pages/public/InviteNewMemberPage'
 import { ResidentDashboardLayout } from './app/layouts/ResidentDashboardLayout'
+import DocumentDetailPage from './pages/private/DocumentDetailPage'
 
 function App() {
 
@@ -42,6 +43,7 @@ function App() {
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/condomini" element={<AdminCondominiListPage />} />
         <Route path="/admin/condomini/:id" element={<AdminCondominiumDetailPage />} />
+        <Route path="/admin/condomini/:condominiumId/documenti/:documentId" element={<DocumentDetailPage />} />
       </Route>
 
       <Route element={<ProtectedRoute><ResidentDashboardLayout /></ProtectedRoute>}>

@@ -27,4 +27,32 @@ export const documentAdminApi = {
         );
         return response.data;
     },
+
+    fetch: async (
+        condominiumId: string,
+        params: {
+            versioningEnabled?: boolean;
+            currentVersion?: number;
+            status?: string;
+            originalName?: string;
+            contentType?: string;
+            page?: number;
+            size?: number;
+            sortBy?: string;
+            ascending?: boolean;
+        }
+    ) => {
+        const response = await api.get(
+            `${defaultUrl}${condominiumId}/admin/document/fetch`,
+            { params }
+        );
+        return response.data;
+    },
+
+    detail: async (condominiumId: string, documentId: string) => {
+    const response = await api.get(
+      `${defaultUrl}${condominiumId}/admin/document/${documentId}/detail`
+    );
+    return response.data;
+  },
 };
