@@ -50,9 +50,47 @@ export const documentAdminApi = {
     },
 
     detail: async (condominiumId: string, documentId: string) => {
-    const response = await api.get(
-      `${defaultUrl}${condominiumId}/admin/document/${documentId}/detail`
-    );
-    return response.data;
-  },
+        const response = await api.get(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/detail`
+        );
+        return response.data;
+    },
+
+    programDeletion: async (condominiumId: string, documentId: string) => {
+        const response = await api.delete(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/program-deletion`
+        );
+        return response.data;
+    },
+
+    deleteDocument: async (condominiumId: string, documentId: string) => {
+        const response = await api.delete(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/delete`
+        );
+        return response.data;
+    },
+
+    bulkProgramDeletion: async (condominiumId: string, idDocuments: string[]) => {
+        const response = await api.delete(
+            `${defaultUrl}${condominiumId}/admin/document/bulk-program-deletion`,
+            { data: { idDocuments } } // DELETE con body
+        );
+        return response.data;
+    },
+
+    bulkDeletion: async (condominiumId: string, idDocuments: string[]) => {
+        const response = await api.delete(
+            `${defaultUrl}${condominiumId}/admin/document/bulk-deletion`,
+            { data: { idDocuments } }
+        );
+        return response.data;
+    },
+
+    changeStatus: async (condominiumId: string, documentId: string, status: string) => {
+        const response = await api.post(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/status`,
+            { status }
+        );
+        return response.data;
+    },
 };
