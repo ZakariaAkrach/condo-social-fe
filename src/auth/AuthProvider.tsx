@@ -7,7 +7,7 @@ import { useNavigate, useLocation } from "react-router";
 type Membership = {
     condominiumId: string;
     condominiumName: string;
-    role: "CONDO_ADMIN" | "CONDO_RESIDENT";
+    role: "CONDO_ADMIN" | "CONDO_RESIDENT" | "CONDO_SUB_ADMIN";
 };
 
 type Profile = {
@@ -65,6 +65,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     function handleRedirect(memberships: Membership[], currentPath: string, userData: Profile) {
         const isAdmin = memberships.some((m) => m.role === "CONDO_ADMIN") || userData.hasAnySubscription;
 
+        const isSubAdmin = memberships.some((m) => m.role === "CONDO_SUB_ADMIN");
+
+        if (isSubAdmin && currentPath.startsWith("/admin")) return;
+
+        if(isSubAdmin) {
+            navigate("/admin/dashboard");
+            return
+        }
+
         // Se siamo già sulla rotta giusta, non fare nulla
         if (isAdmin && currentPath.startsWith("/admin")) return;
         if (!isAdmin && memberships.length > 0 && currentPath.startsWith("/resident")) return;
@@ -121,7 +130,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => subscription.unsubscribe();
     }, []);
 
-    // 👇 Aggiungiamo refreshProfile al provider value
     return (
         <AuthContext.Provider value={{ user, loading, profile, refreshProfile }}>
             {children}

@@ -6,11 +6,13 @@ import AdminAnalyzTicketsDashboard from "@/components/adminDashboard/AdminAnalyz
 import AdminRecentActivities from "@/components/adminDashboard/AdminRecentActivities";
 import { useState, useEffect, useCallback } from "react";
 import { condominiumApi, type CondominiumDto } from "@/app/api/condominium";
+import { useAuth } from "@/auth/AuthProvider";
 
 export default function AdminDashboardPage() {
   const [condominiums, setCondominiums] = useState<CondominiumDto[]>([]);
   const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
+  const { profile } = useAuth();
 
   const fetchCondominiums = useCallback(async () => {
     try {
@@ -44,9 +46,9 @@ export default function AdminDashboardPage() {
       <AdminMetricsDashboard />
 
       {/* Passa i condomini come prop */}
-      <AdminCondominiDashboard 
-        condominiums={condominiums} 
-        totalElements={totalElements} 
+      <AdminCondominiDashboard
+        condominiums={condominiums}
+        totalElements={totalElements}
         loading={loading}
         onRefresh={fetchCondominiums}
       />
@@ -55,7 +57,8 @@ export default function AdminDashboardPage() {
 
       <AdminAnalyzTicketsDashboard />
 
-      <AdminRecentActivities condominiums={condominiums} limit={3} />
+      {profile?.hasAnySubscription && <AdminRecentActivities condominiums={condominiums} limit={3} />}
+
     </div>
   );
 }
