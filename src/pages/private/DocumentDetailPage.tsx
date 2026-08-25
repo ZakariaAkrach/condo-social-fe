@@ -265,9 +265,13 @@ export default function DocumentDetailPage() {
     }
   };
 
+  // Esclude gli amministratori dalla selezione "Seleziona tutti" nella scheda Rimuovi
   const toggleAllRemove = () => {
     const visibleUserIds = new Set(visibility.map((v) => v.userId));
-    const visibleMembers = allMembers.filter((m) => visibleUserIds.has(m.id));
+    // Filtra i membri visibili escludendo i CONDO_ADMIN
+    const visibleMembers = allMembers.filter(
+      (m) => visibleUserIds.has(m.id) && m.role !== "CONDO_ADMIN"
+    );
     if (selectedToRemove.size === visibleMembers.length) {
       setSelectedToRemove(new Set());
     } else {
@@ -286,7 +290,12 @@ export default function DocumentDetailPage() {
       .map((userId) => userIdToMemberId.get(userId))
       .filter((id): id is string => id !== undefined);
 
-    const removeMemberIds = Array.from(selectedToRemove)
+    // Esclude gli amministratori dalla lista di rimozione (doppia sicurezza)
+    const removeUserIds = Array.from(selectedToRemove).filter((userId) => {
+      const member = allMembers.find((m) => m.id === userId);
+      return member && member.role !== "CONDO_ADMIN";
+    });
+    const removeMemberIds = removeUserIds
       .map((userId) => userIdToMemberId.get(userId))
       .filter((id): id is string => id !== undefined);
 
@@ -361,7 +370,6 @@ export default function DocumentDetailPage() {
     navigate(-1);
   };
 
-  // ********** FUNZIONE HANDLE DOWNLOAD CORRETTA **********
   const handleDownload = async (versionId?: string) => {
     if (!condominiumId || !documentId) {
       toast.error("Dati mancanti per il download");
@@ -388,7 +396,7 @@ export default function DocumentDetailPage() {
         requestedVersion
       );
 
-      const downloadUrl = response.data;
+      const downloadUrl = response.data.downloadURL;
 
       if (!downloadUrl) {
         toast.error("URL di download non disponibile");
@@ -401,7 +409,7 @@ export default function DocumentDetailPage() {
 
       const link = window.document.createElement("a");
       link.href = blobUrl;
-      link.download = "documento.pdf";
+      link.download = response.data.fileName;
 
       window.document.body.appendChild(link);
       link.click();
@@ -417,7 +425,6 @@ export default function DocumentDetailPage() {
       setDownloading(false);
     }
   };
-  // ********** FINE HANDLE DOWNLOAD **********
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -537,13 +544,14 @@ export default function DocumentDetailPage() {
     }
   };
 
+  // CORREZIONE: plurale e arrotondamento con Math.ceil
   const getDeletionCountdown = () => {
     if (!document?.deletedAt) return null;
     const deletionDate = addDays(new Date(document.deletedAt), 7);
-    const daysLeft = differenceInDays(deletionDate, new Date());
+    const daysLeft = Math.ceil(differenceInDays(deletionDate, new Date()));
     if (daysLeft < 0) return "Scaduto";
     if (daysLeft === 0) return "Oggi";
-    return `${daysLeft} giorno${daysLeft !== 1 ? "i" : ""}`;
+    return `${daysLeft} ${daysLeft === 1 ? "giorno" : "giorni"}`;
   };
 
   const getDeletionDate = () => {
@@ -774,16 +782,16 @@ export default function DocumentDetailPage() {
                   <div
                     key={v.idVersion}
                     className={`flex items-center justify-between p-4 rounded-lg border transition-all ${isCurrent
-                        ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
-                        : "bg-card hover:bg-muted/30"
+                      ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
+                      : "bg-card hover:bg-muted/30"
                       }`}
                   >
                     <div className="flex items-center gap-4 min-w-0 flex-1">
                       <div className="flex-shrink-0">
                         <div
                           className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${isCurrent
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
                             }`}
                         >
                           v{v.version}
@@ -835,6 +843,7 @@ export default function DocumentDetailPage() {
           )}
         </TabsContent>
 
+        {/* SCHEDA ACCESSO CON AVVISO INFORMATIVO */}
         <TabsContent value="permissions" className="space-y-4 pt-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-medium">Utenti con accesso</h3>
@@ -843,6 +852,16 @@ export default function DocumentDetailPage() {
               Gestisci accesso
             </Button>
           </div>
+
+          <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertTitle className="text-blue-800 dark:text-blue-300 text-sm font-medium">
+              Accesso garantito
+            </AlertTitle>
+            <AlertDescription className="text-blue-700 dark:text-blue-400 text-xs">
+              Gli <strong>Amministratori di condominio</strong> e i <strong>Sub‑amministratori</strong> hanno sempre accesso a questo documento, anche se non compaiono nella lista qui sotto.
+            </AlertDescription>
+          </Alert>
 
           {visibilityLoading ? (
             <div className="flex justify-center py-8">
@@ -853,9 +872,9 @@ export default function DocumentDetailPage() {
           ) : visibility.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">Nessun utente con accesso</p>
+              <p className="font-medium">Nessun utente aggiuntivo con accesso</p>
               <p className="text-sm">
-                Nessun utente è autorizzato a visualizzare questo documento. L'accesso sarà consentito esclusivamente agli amministratori e ai sub-amministratori.
+                Solo gli amministratori e i sub‑amministratori possono visualizzare questo documento.
               </p>
             </div>
           ) : (
@@ -916,6 +935,9 @@ export default function DocumentDetailPage() {
             <DialogTitle>Gestisci accesso al documento</DialogTitle>
             <DialogDescription>
               Scegli nella scheda <strong>Aggiungi</strong> gli utenti a cui dare accesso, oppure nella scheda <strong>Rimuovi</strong> quelli da rimuovere.
+              <span className="block mt-1 text-xs text-muted-foreground">
+                <strong>Nota:</strong> gli amministratori di condominio e i sub‑amministratori hanno sempre accesso a questo documento e non possono essere rimossi.
+              </span>
             </DialogDescription>
           </DialogHeader>
 
@@ -996,11 +1018,14 @@ export default function DocumentDetailPage() {
                 <TabsContent value="remove" className="flex-1 overflow-y-auto py-4 space-y-2">
                   {(() => {
                     const visibleUserIds = new Set(visibility.map((v) => v.userId));
-                    const visibleMembers = allMembers.filter((m) => visibleUserIds.has(m.id));
+                    // Filtra i membri visibili: esclude i CONDO_ADMIN dalla lista rimovibile
+                    const visibleMembers = allMembers.filter(
+                      (m) => visibleUserIds.has(m.id) && m.role !== "CONDO_ADMIN"
+                    );
                     if (visibleMembers.length === 0) {
                       return (
                         <div className="text-center py-8 text-muted-foreground">
-                          <p>Nessun membro ha attualmente accesso.</p>
+                          <p>Nessun membro rimovibile (amministratori e sub‑admin non possono essere rimossi).</p>
                         </div>
                       );
                     }
