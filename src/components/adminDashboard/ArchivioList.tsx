@@ -14,6 +14,7 @@ import {
   RefreshCw,
   EyeOff,
   CheckCircle,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -57,8 +58,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { documentAdminApi } from "@/app/api/documentAdmin";
 import { uploadFileToStorage } from "@/auth/uploadStorage";
 import { useNavigate } from "react-router";
-import { formatDistanceToNow, addDays, differenceInDays } from "date-fns";
-import { it } from "date-fns/locale";
+import { addDays, differenceInDays } from "date-fns";
 
 interface ArchivioListProps {
   condominiumId: string;
@@ -107,14 +107,19 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("active");
   const [refreshing, setRefreshing] = useState(false);
 
+  // Filtri compatti
+  const [filters, setFilters] = useState({
+    originalName: "",
+    contentType: "",
+    statusFilter: "all",
+    versioningEnabled: undefined as boolean | undefined,
+  });
   const [queryParams, setQueryParams] = useState({
-    filters: DEFAULT_FILTERS,
     page: 0,
     size: 10,
     sortBy: "createdAt",
     ascending: false,
   });
-  const [filterValues, setFilterValues] = useState(DEFAULT_FILTERS);
 
   // Upload state
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
@@ -128,13 +133,15 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
   >("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Selezione e azioni
+  // Selezione e azioni bulk
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDialog, setBulkDialog] = useState<{ open: boolean; type: "delete" | "program" | null }>({
     open: false,
     type: null,
   });
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  // Azioni singole
   const [singleActionDialog, setSingleActionDialog] = useState<{
     open: boolean;
     type: "delete" | "program" | null;
@@ -142,8 +149,25 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
   }>({ open: false, type: null, documentId: null });
   const [singleActionLoading, setSingleActionLoading] = useState(false);
 
-  // Stato per cambio stato inline (per disabilitare il selettore durante l'operazione)
+  // Stato per cambio stato tramite dialog
+  const [statusDialog, setStatusDialog] = useState<{
+    open: boolean;
+    documentId: string | null;
+  }>({ open: false, documentId: null });
+  const [statusDialogValue, setStatusDialogValue] = useState<"DRAFT" | "ACTIVE">("DRAFT");
   const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+
+  // ========== UTILITY PER IL NOME DOCUMENTO ==========
+  // Rimuove tutti i punti da una stringa
+  const sanitizeName = (name: string) => name.replace(/\./g, "");
+
+  // Restituisce il nome del file senza estensione e senza punti
+  const getBaseNameWithoutExtension = (fileName: string) => {
+    const lastDotIndex = fileName.lastIndexOf(".");
+    const base = lastDotIndex > -1 ? fileName.substring(0, lastDotIndex) : fileName;
+    return sanitizeName(base);
+  };
+  // ===================================================
 
   // Fetch
   const fetchDocuments = useCallback(
@@ -151,7 +175,7 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
       if (showLoading) setLoading(true);
       setError(null);
       try {
-        const { filters, page, size, sortBy, ascending } = params;
+        const { page, size, sortBy, ascending } = params;
         const searchParams: any = {
           page,
           size,
@@ -160,11 +184,14 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
           originalName: filters.originalName || undefined,
           contentType: filters.contentType || undefined,
           versioningEnabled: filters.versioningEnabled,
-          currentVersion: filters.currentVersion > 0 ? filters.currentVersion : undefined,
         };
 
         if (mode === "deleted") {
           searchParams.status = "DELETED";
+        } else {
+          if (filters.statusFilter !== "all") {
+            searchParams.status = filters.statusFilter;
+          }
         }
 
         const response = await documentAdminApi.fetch(condominiumId, searchParams);
@@ -185,7 +212,7 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
         if (showLoading) setLoading(false);
       }
     },
-    [condominiumId]
+    [condominiumId, filters]
   );
 
   useEffect(() => {
@@ -200,33 +227,30 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
   };
 
   const handleSearch = () => {
-    setQueryParams((prev) => ({
-      ...prev,
-      filters: filterValues,
-      page: 0,
-    }));
+    setQueryParams((prev) => ({ ...prev, page: 0 }));
   };
 
   const handleReset = () => {
-    setFilterValues(DEFAULT_FILTERS);
-    setQueryParams((prev) => ({
-      ...prev,
-      filters: DEFAULT_FILTERS,
-      page: 0,
-    }));
+    setFilters({
+      originalName: "",
+      contentType: "",
+      statusFilter: "all",
+      versioningEnabled: undefined,
+    });
+    setQueryParams((prev) => ({ ...prev, page: 0 }));
   };
 
+  // Paginazione
   const goToPage = (page: number) => {
     if (page >= 0 && page < totalPages) {
       setQueryParams((prev) => ({ ...prev, page }));
     }
   };
-
   const handlePageSizeChange = (size: number) => {
     setQueryParams((prev) => ({ ...prev, size, page: 0 }));
   };
 
-  // Upload handlers
+  // Upload handlers (modificati)
   const resetForm = () => {
     setSelectedFile(null);
     setDocumentName("");
@@ -236,11 +260,15 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
     setIsUploading(false);
   };
 
+  // Quando viene selezionato un file, impostiamo il nome senza estensione e senza punti
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
-      if (!documentName) setDocumentName(file.name);
+      // Se il campo nome è vuoto, usa il nome base pulito
+      if (!documentName) {
+        setDocumentName(getBaseNameWithoutExtension(file.name));
+      }
     }
   };
 
@@ -251,7 +279,8 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
     try {
       const file = selectedFile;
       const extension = file.name.split(".").pop() || "";
-      const finalName = documentName.trim() || file.name;
+      // Se il campo è vuoto, usa il nome base pulito; altrimenti usa il valore digitato (già sanitizzato)
+      const finalName = documentName.trim() || getBaseNameWithoutExtension(file.name);
 
       const payload = {
         versioningEnabled,
@@ -362,21 +391,28 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
     }
   };
 
-  // ** NUOVA FUNZIONE: cambio stato inline **
-  const handleStatusChange = async (docId: string, newStatus: "DRAFT" | "ACTIVE") => {
-    setStatusUpdatingId(docId);
+  // Cambio stato tramite dialog
+  const openStatusDialog = (docId: string, currentStatus: string) => {
+    setStatusDialogValue(currentStatus as "DRAFT" | "ACTIVE");
+    setStatusDialog({ open: true, documentId: docId });
+  };
+
+  const handleStatusChangeFromDialog = async () => {
+    if (!statusDialog.documentId) return;
+    setStatusUpdatingId(statusDialog.documentId);
     try {
-      await documentAdminApi.changeStatus(condominiumId, docId, newStatus);
-      toast.success(`Stato aggiornato a ${newStatus === "ACTIVE" ? "Attivo" : "Bozza"}`);
-      // Ricarica la lista per riflettere il cambiamento
+      await documentAdminApi.changeStatus(condominiumId, statusDialog.documentId, statusDialogValue);
+      toast.success(`Stato aggiornato a ${statusDialogValue === "ACTIVE" ? "Attivo" : "Bozza"}`);
       await fetchDocuments(queryParams, viewMode);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Errore durante il cambio stato.");
     } finally {
       setStatusUpdatingId(null);
+      setStatusDialog({ open: false, documentId: null });
     }
   };
 
+  // Utility
   const formatSize = (bytes: number) => {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -398,7 +434,7 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
     return `${daysLeft} giorno${daysLeft !== 1 ? "i" : ""}`;
   };
 
-  // Badge stato (usato solo per i documenti eliminati o quando non si vuole il select)
+  // Badge stato
   const StatusBadge = ({ status }: { status: string }) => {
     const config = {
       ACTIVE: { variant: "default" as const, icon: <CheckCircle className="h-3 w-3 mr-1" /> },
@@ -409,7 +445,7 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
     return (
       <Badge variant={variant} className="flex items-center gap-0.5">
         {icon}
-        {status}
+        {status === "ACTIVE" ? "Attivo" : status === "DRAFT" ? "Bozza" : "Eliminato"}
       </Badge>
     );
   };
@@ -509,6 +545,7 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                 )}
               </div>
 
+              {/* ===== CAMPO NOME DOCUMENTO MODIFICATO ===== */}
               <div className="space-y-1">
                 <Label htmlFor="doc-name" className="text-xs font-medium">
                   Nome documento
@@ -516,11 +553,16 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                 <Input
                   id="doc-name"
                   value={documentName}
-                  onChange={(e) => setDocumentName(e.target.value)}
+                  onChange={(e) => {
+                    // Rimuove tutti i punti durante la digitazione
+                    const sanitized = sanitizeName(e.target.value);
+                    setDocumentName(sanitized);
+                  }}
                   placeholder="Lascia vuoto per usare il nome del file"
                   className="h-8 text-sm"
                 />
               </div>
+              {/* =========================================== */}
 
               <Separator className="my-1" />
 
@@ -615,56 +657,58 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
         </Dialog>
       </div>
 
-      {/* Filtri */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 items-end">
-        <div className="space-y-1">
-          <Label htmlFor="filter-originalName" className="text-xs">
-            Nome file
-          </Label>
-          <Input
-            id="filter-originalName"
-            placeholder="Cerca per nome..."
-            value={filterValues.originalName}
-            onChange={(e) =>
-              setFilterValues((prev) => ({ ...prev, originalName: e.target.value }))
-            }
-            className="h-9"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="filter-contentType" className="text-xs">
-            Tipo contenuto
-          </Label>
+      {/* FILTRI COMPATTI */}
+      <div className="flex flex-wrap items-end gap-2">
+        <Input
+          placeholder="Cerca per nome..."
+          value={filters.originalName}
+          onChange={(e) => setFilters((prev) => ({ ...prev, originalName: e.target.value }))}
+          className="h-9 w-[180px]"
+        />
+        <Select
+          value={filters.contentType}
+          onValueChange={(val) => setFilters((prev) => ({ ...prev, contentType: val }))}
+        >
+          <SelectTrigger className="h-9 w-[140px]">
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            {CONTENT_TYPE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={
+            filters.versioningEnabled === undefined
+              ? "all"
+              : String(filters.versioningEnabled)
+          }
+          onValueChange={(val) =>
+            setFilters((prev) => ({
+              ...prev,
+              versioningEnabled: val === "all" ? undefined : val === "true",
+            }))
+          }
+        >
+          <SelectTrigger className="h-9 w-[140px]">
+            <SelectValue placeholder="Versioning" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tutti</SelectItem>
+            <SelectItem value="true">Abilitato</SelectItem>
+            <SelectItem value="false">Disabilitato</SelectItem>
+          </SelectContent>
+        </Select>
+        {viewMode === "active" && (
           <Select
-            value={filterValues.contentType}
-            onValueChange={(val) =>
-              setFilterValues((prev) => ({ ...prev, contentType: val }))
-            }
+            value={filters.statusFilter}
+            onValueChange={(val) => setFilters((prev) => ({ ...prev, statusFilter: val }))}
           >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Seleziona tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              {CONTENT_TYPE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="filter-status" className="text-xs">
-            Stato
-          </Label>
-          <Select
-            value={filterValues.status}
-            onValueChange={(val) =>
-              setFilterValues((prev) => ({ ...prev, status: val }))
-            }
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Tutti" />
+            <SelectTrigger className="h-9 w-[130px]">
+              <SelectValue placeholder="Stato" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tutti</SelectItem>
@@ -672,40 +716,11 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
               <SelectItem value="ACTIVE">Attivo</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="filter-versioningEnabled" className="text-xs">
-            Versioning
-          </Label>
-          <Select
-            value={
-              filterValues.versioningEnabled === undefined
-                ? "all"
-                : String(filterValues.versioningEnabled)
-            }
-            onValueChange={(val) =>
-              setFilterValues((prev) => ({
-                ...prev,
-                versioningEnabled: val === "all" ? undefined : val === "true",
-              }))
-            }
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Tutti" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti</SelectItem>
-              <SelectItem value="true">Abilitato</SelectItem>
-              <SelectItem value="false">Disabilitato</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="default" onClick={handleSearch} className="gap-1">
+        )}
+        <Button size="sm" variant="default" onClick={handleSearch} className="gap-1 h-9">
           <Search className="h-4 w-4" /> Cerca
         </Button>
-        <Button size="sm" variant="outline" onClick={handleReset} className="gap-1">
+        <Button size="sm" variant="outline" onClick={handleReset} className="gap-1 h-9">
           <X className="h-4 w-4" /> Reset
         </Button>
       </div>
@@ -742,7 +757,7 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
         </div>
       )}
 
-      {/* Lista */}
+      {/* Tabella */}
       {loading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -810,28 +825,6 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                     {queryParams.sortBy === "size" &&
                       (queryParams.ascending ? "↑" : "↓")}
                   </TableHead>
-                  {/* COLONNA STATO CON SELECT INLINE */}
-                  <TableHead
-                    className="cursor-pointer hover:text-primary"
-                    onClick={() => {
-                      if (queryParams.sortBy === "status") {
-                        setQueryParams((prev) => ({
-                          ...prev,
-                          ascending: !prev.ascending,
-                        }));
-                      } else {
-                        setQueryParams((prev) => ({
-                          ...prev,
-                          sortBy: "status",
-                          ascending: true,
-                        }));
-                      }
-                    }}
-                  >
-                    Stato{" "}
-                    {queryParams.sortBy === "status" &&
-                      (queryParams.ascending ? "↑" : "↓")}
-                  </TableHead>
                   <TableHead
                     className="cursor-pointer hover:text-primary"
                     onClick={() => {
@@ -853,9 +846,8 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                     {queryParams.sortBy === "currentVersion" &&
                       (queryParams.ascending ? "↑" : "↓")}
                   </TableHead>
-                  {viewMode === "deleted" && (
-                    <TableHead>Eliminazione</TableHead>
-                  )}
+                  <TableHead>Stato</TableHead>
+                  {viewMode === "deleted" && <TableHead>Eliminazione</TableHead>}
                   <TableHead className="text-right">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
@@ -863,7 +855,7 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                 {documents.map((doc) => (
                   <TableRow
                     key={doc.id}
-                    className="cursor-pointer hover:bg-muted/50"
+                    className={`cursor-pointer hover:bg-muted/50 ${doc.status === "DELETED" ? "bg-muted/20" : ""}`}
                     onClick={() => goToDetail(doc.id)}
                   >
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -882,28 +874,19 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                       </span>
                     </TableCell>
                     <TableCell>{formatSize(doc.size)}</TableCell>
+                    <TableCell>{doc.currentVersion}</TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       {doc.status === "DELETED" ? (
                         <StatusBadge status="DELETED" />
                       ) : (
-                        <Select
-                          value={doc.status}
-                          onValueChange={(val) =>
-                            handleStatusChange(doc.id, val as "DRAFT" | "ACTIVE")
-                          }
-                          disabled={statusUpdatingId === doc.id}
+                        <button
+                          className="focus:outline-none"
+                          onClick={() => openStatusDialog(doc.id, doc.status)}
                         >
-                          <SelectTrigger className="h-7 w-[90px] text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="DRAFT">Bozza</SelectItem>
-                            <SelectItem value="ACTIVE">Attivo</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <StatusBadge status={doc.status} />
+                        </button>
                       )}
                     </TableCell>
-                    <TableCell>{doc.currentVersion}</TableCell>
                     {viewMode === "deleted" && (
                       <TableCell>
                         {doc.deletedAt ? (
@@ -935,13 +918,22 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {doc.status !== "DELETED" && (
-                              <DropdownMenuItem
-                                onClick={() => openSingleActionDialog("program", doc.id)}
-                                className="gap-2"
-                              >
-                                <Clock className="h-4 w-4" />
-                                Programma eliminazione
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => openStatusDialog(doc.id, doc.status)}
+                                  className="gap-2"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                  Cambia stato
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => openSingleActionDialog("program", doc.id)}
+                                  className="gap-2"
+                                >
+                                  <Clock className="h-4 w-4" />
+                                  Programma eliminazione
+                                </DropdownMenuItem>
+                              </>
                             )}
                             <DropdownMenuItem
                               onClick={() => openSingleActionDialog("delete", doc.id)}
@@ -963,8 +955,22 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
           {/* Paginazione */}
           {totalPages > 0 && (
             <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-2">
-              <div className="text-sm text-muted-foreground">
-                Mostrati {documents.length} di {totalElements} documenti
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Mostrati {documents.length} di {totalElements}</span>
+                <Select
+                  value={String(queryParams.size)}
+                  onValueChange={(val) => handlePageSizeChange(Number(val))}
+                >
+                  <SelectTrigger className="h-8 w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center gap-1">
                 <Button
@@ -986,25 +992,6 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
                 >
                   Successiva
                 </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="pageSize" className="text-xs">
-                  Righe:
-                </Label>
-                <Select
-                  value={String(queryParams.size)}
-                  onValueChange={(val) => handlePageSizeChange(Number(val))}
-                >
-                  <SelectTrigger className="h-8 w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
           )}
@@ -1099,6 +1086,47 @@ export function ArchivioList({ condominiumId }: ArchivioListProps) {
               ) : (
                 "Programma eliminazione"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog per cambio stato */}
+      <Dialog
+        open={statusDialog.open}
+        onOpenChange={(open) => !statusUpdatingId && setStatusDialog({ open, documentId: null })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cambia stato del documento</DialogTitle>
+            <DialogDescription>Scegli il nuovo stato.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <RadioGroup
+              value={statusDialogValue}
+              onValueChange={(val) => setStatusDialogValue(val as "DRAFT" | "ACTIVE")}
+              className="space-y-2"
+            >
+              <div className="flex items-start space-x-2">
+                <RadioGroupItem value="DRAFT" id="sd-draft" />
+                <Label htmlFor="sd-draft" className="font-medium">Bozza</Label>
+              </div>
+              <div className="flex items-start space-x-2">
+                <RadioGroupItem value="ACTIVE" id="sd-active" />
+                <Label htmlFor="sd-active" className="font-medium">Attivo</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setStatusDialog({ open: false, documentId: null })}
+              disabled={!!statusUpdatingId}
+            >
+              Annulla
+            </Button>
+            <Button onClick={handleStatusChangeFromDialog} disabled={!!statusUpdatingId}>
+              {statusUpdatingId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Aggiorna"}
             </Button>
           </DialogFooter>
         </DialogContent>

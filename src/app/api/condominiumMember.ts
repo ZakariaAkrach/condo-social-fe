@@ -10,6 +10,7 @@ export interface FetchMembersResponseDto {
     firstName: string;
     lastName: string;
     role: string;
+    memberId: string;
 }
 
 

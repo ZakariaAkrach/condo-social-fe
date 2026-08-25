@@ -93,4 +93,91 @@ export const documentAdminApi = {
         );
         return response.data;
     },
+
+    fetchVersions: async (
+        condominiumId: string,
+        documentId: string,
+        params: {
+            originalName?: string;
+            contentType?: string;
+            page?: number;
+            size?: number;
+            sortBy?: string;
+            ascending?: boolean;
+        }
+    ) => {
+        const response = await api.get(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/fetch-versions`,
+            { params }
+        );
+        return response.data;
+    },
+
+    // Alla fine di documentAdminApi, aggiungi:
+
+    addNewVersion: async (
+        condominiumId: string,
+        documentId: string,
+        data: {
+            originalFileName: string;
+            size: number;
+            contentType: string;
+            extension: string;
+        }
+    ) => {
+        const response = await api.post(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/add-new-version`,
+            data
+        );
+        return response.data;
+    },
+
+    fetchVisibility: async (
+        condominiumId: string,
+        documentId: string,
+        params?: {
+            firstName?: string;
+            lastName?: string;
+            role?: string;
+            page?: number;
+            size?: number;
+            sortBy?: string;
+            ascending?: boolean;
+        }
+    ) => {
+        const response = await api.get(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/fetch-visibility`,
+            { params }
+        );
+        return response.data;
+    },
+
+    updateVisibility: async (
+        condominiumId: string,
+        documentId: string,
+        data: {
+            addMembers?: string[];
+            removeMembers?: string[];
+            addAll?: boolean;
+        }
+    ) => {
+        const response = await api.post(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/visibility`,
+            data
+        );
+        return response.data;
+    },
+    
+    download: async (
+        condominiumId: string,
+        documentId: string,
+        requestedVersion?: number
+    ) => {
+        const params = requestedVersion !== undefined ? { requestedVersion } : {};
+        const response = await api.get(
+            `${defaultUrl}${condominiumId}/admin/document/${documentId}/download`,
+            { params }
+        );
+        return response.data; // { success, statusCode, message, data: presignedUrl }
+    },
 };
