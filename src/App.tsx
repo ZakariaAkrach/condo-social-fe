@@ -7,7 +7,6 @@ import AuthCallbackRegistrationPage from './pages/public/AuthCallbackRegistratio
 import ProtectedRoute from './routes/ProtectedRoute'
 import OnboardingPage from './pages/private/Onboarding'
 import AdminDashboardPage from './pages/private/AdminDashboardPage'
-import ResidentDashboardPage from './pages/private/ResidentDashboardPage'
 import ForgotPasswordPage from './pages/public/ForgotPasswordPage'
 import ResetPasswordPage from './pages/public/ResetPasswordPage'
 import { AdminDashboardLayout } from './app/layouts/AdminDashboardLayout'
@@ -16,6 +15,9 @@ import AdminCondominiumDetailPage from './pages/private/AdminCondominiumDetailPa
 import InviteNewMemberPage from './pages/public/InviteNewMemberPage'
 import { ResidentDashboardLayout } from './app/layouts/ResidentDashboardLayout'
 import DocumentDetailPage from './pages/private/DocumentDetailPage'
+import ResidentDocumentDetailPage from './pages/private/resident/ResidentDocumentDetailPage'
+import ResidentDocumentsPage from './pages/private/resident/ResidentDocumentsPage'
+import ResidentDashboardPage from './pages/private/resident/ResidentDashboardPage'
 
 function App() {
 
@@ -48,6 +50,10 @@ function App() {
 
       <Route element={<ProtectedRoute><ResidentDashboardLayout /></ProtectedRoute>}>
         <Route path="/resident/dashboard" element={<ResidentDashboardPage />} />
+        <Route path="/resident/documents" element={<ResidentDocumentsPage />} />
+        <Route path="/resident/document/:documentId" element={<ResidentDocumentDetailPage />} />
+        <Route path="/resident/tickets" element={<div className="p-4 text-center text-muted-foreground">Ticket - in costruzione</div>} />
+        <Route path="/resident/posts" element={<div className="p-4 text-center text-muted-foreground">Annunci - in costruzione</div>} />
       </Route>
     </Routes >
   )
