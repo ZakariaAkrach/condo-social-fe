@@ -430,7 +430,9 @@ export default function DocumentDetailPage() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
-      if (!versionName) setVersionName(file.name);
+      // Rimuove l'estensione dal nome del file
+      const nameWithoutExtension = file.name.replace(/\.[^.]+$/, '');
+      setVersionName(nameWithoutExtension);
     }
   };
 
@@ -1179,7 +1181,11 @@ export default function DocumentDetailPage() {
               <Input
                 id="version-name"
                 value={versionName}
-                onChange={(e) => setVersionName(e.target.value)}
+                onChange={(e) => {
+                  // Rimuove tutti i punti (.) dal testo inserito
+                  const value = e.target.value.replace(/\./g, '');
+                  setVersionName(value);
+                }}
                 placeholder="Lascia vuoto per usare il nome del file"
                 className="h-8 text-sm"
               />

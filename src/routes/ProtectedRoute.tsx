@@ -1,23 +1,30 @@
-import { useAuth } from "@/auth/AuthProvider"
-import { PageLoader } from "@/components/common/PageLoader"
-import { Navigate } from "react-router"
+import { useAuth } from "@/auth/AuthProvider";
+import { PageLoader } from "@/components/common/PageLoader";
+import { Navigate } from "react-router";
 
 export default function ProtectedRoute({
-    children
+    children,
 }: {
-    children: React.ReactNode
+    children: React.ReactNode;
 }) {
-    const { user, loading } = useAuth()
+    const {
+        user,
+        loading,
+        initialized,
+    } = useAuth();
 
-    if (loading) {
-        return (
-            <PageLoader />
-        )
+    if (!initialized || loading) {
+        return <PageLoader />;
     }
 
     if (!user) {
-        return <Navigate to="/sign-in" />
+        return (
+            <Navigate
+                to="/sign-in"
+                replace
+            />
+        );
     }
 
-    return children
+    return children;
 }

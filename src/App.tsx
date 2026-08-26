@@ -18,6 +18,7 @@ import DocumentDetailPage from './pages/private/DocumentDetailPage'
 import ResidentDocumentDetailPage from './pages/private/resident/ResidentDocumentDetailPage'
 import ResidentDocumentsPage from './pages/private/resident/ResidentDocumentsPage'
 import ResidentDashboardPage from './pages/private/resident/ResidentDashboardPage'
+import DeletedCondominium from './pages/public/DeletedCondominium'
 
 function App() {
 
@@ -32,6 +33,7 @@ function App() {
         <Route path="/invite-new-member" element={<InviteNewMemberPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/deleted-condominium" element={<DeletedCondominium />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -1,4 +1,4 @@
-import { Spinner } from "@/components/ui/spinner"
+import { Spinner } from "@/components/ui/spinner";
 
 export function PageLoader() {
     return (
@@ -17,5 +17,5 @@ export function PageLoader() {
                 </div>
             </div>
         </div>
-    )
+    );
 }
