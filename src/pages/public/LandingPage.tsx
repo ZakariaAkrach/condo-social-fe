@@ -10,83 +10,107 @@ import {
   Home,
   Users,
   Ticket,
-  DollarSign,
-  Wrench,
   Bell,
   Layers,
   User,
   UserCog,
   CheckCircle,
   ArrowRightCircle,
+  FileText,
+  Megaphone,
+  ShieldCheck,
+  DollarSign,
+  Wrench,
+  Rocket,
+  Info,
 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
-// Servizi – titoli e descrizioni orientati al beneficio
+// Servizi attuali – solo i tre core
 const services = [
   {
-    id: "ticket",
-    title: "Ticket",
-    description: "Segnala problemi e ricevi risposte in tempo reale. Niente più email perse.",
-    icon: Ticket,
-  },
-  {
-    id: "spese",
-    title: "Spese",
-    description: "Rendiconti chiari, preventivi da approvare, budget sempre sotto controllo.",
-    icon: DollarSign,
-  },
-  {
-    id: "manutenzione",
-    title: "Fornitori",
-    description: "Coordina giardinieri, idraulici e imprese con un pannello unico.",
-    icon: Wrench,
-  },
-  {
-    id: "comunicazioni",
-    title: "Comunicazioni",
-    description: "Post e notifiche per tenere tutti aggiornati, come sui social.",
-    icon: Bell,
+    id: "post",
+    title: "Post",
+    description: "L'amministratore pubblica un messaggio, tutti i residenti lo vedono in tempo reale. Come un social, ma solo per il tuo condominio.",
+    icon: Megaphone,
   },
   {
     id: "documenti",
-    title: "Archivio",
-    description: "Regolamenti, contratti e verbali sempre a portata di click.",
+    title: "Documenti",
+    description: "Carica regolamenti, contratti o verbali e scegli esattamente chi può vederli. Sempre a portata di click.",
     icon: Layers,
+  },
+  {
+    id: "ticket",
+    title: "Ticket",
+    description: "I residenti segnalano problemi, l'amministratore riceve notifica e risponde in modo tracciato. Niente più mail perse.",
+    icon: Ticket,
+  },
+];
+
+// Funzionalità in arrivo – con disclaimer esplicito
+const upcomingFeatures = [
+  {
+    id: "spese",
+    title: "Gestione Spese Condominiali",
+    description: "Rendiconti chiari, preventivi da approvare e budget sempre sotto controllo. Tutto digitalizzato e tracciato.",
+    icon: DollarSign,
+  },
+  {
+    id: "fornitori",
+    title: "Gestione Fornitori Esterni",
+    description: "Coordina giardinieri, idraulici e imprese con un pannello unico. Assegna incarichi, monitora i lavori e tieni traccia dei pagamenti.",
+    icon: Wrench,
   },
 ];
 
 export default function LandingPage() {
   return (
     <div className="w-4/5 mx-auto py-10 sm:py-16">
-      {/* ===== HERO – copy diretto ===== */}
+      {/* ===== HERO – focus su chiarezza e gratuità ===== */}
       <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45 }}
         >
-          <h1 className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
-            Condominio digitale
-          </h1>
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+              Condominio digitale
+            </span>
+            <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-none text-xs font-semibold px-3 py-1">
+              🎯 30 giorni gratis – nessuna carta
+            </Badge>
+          </div>
           <h1 className="mt-5 max-w-3xl text-4xl font-extrabold leading-[1.05] sm:text-6xl">
-            Amministratore e residenti: <br />
-            <span className="text-primary">connessi in un click</span>
+            Post, documenti e ticket: <br />
+            <span className="text-primary">il condominio si connette</span>
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-            Addio a email perse, chat confuse e fogli volanti. <br />
-            Ticket, comunicazioni, spese e fornitori: tutto in una piattaforma chiara, per condomini senza stress.
+            Un’unica bacheca dove l’amministratore comunica con tutti, condivide documenti importanti e gestisce le segnalazioni. 
+            <br className="hidden sm:block" />
+            <span className="font-medium text-foreground">Prova 30 giorni, zero impegno e nessuna carta di credito.</span>
+            <br />
+            <span className="text-sm text-primary/80 flex items-center gap-1">
+              <Info className="h-4 w-4" />
+              Presto (2027) anche gestione spese e fornitori – funzionalità in sviluppo, non ancora incluse.
+            </span>
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" className="h-14 px-5 text-lg">
+            <Button asChild size="lg" className="h-14 px-6 text-lg shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300">
               <a href="#services">Scopri i servizi</a>
             </Button>
-            <Button asChild size="lg" variant="outline" className="h-14 px-5 text-lg">
-              <Link to="/sign-up">Prova la demo</Link>
+            <Button asChild size="lg" variant="outline" className="h-14 px-6 text-lg border-2">
+              <Link to="/sign-up">Inizia la prova gratuita →</Link>
             </Button>
           </div>
+          <p className="mt-4 text-sm text-muted-foreground/70 flex items-center gap-1">
+            <ShieldCheck className="h-4 w-4 text-green-600" />
+            Nessuna carta richiesta – disdici quando vuoi
+          </p>
         </motion.div>
 
-        {/* Flusso visivo – rimasto uguale ma con copy più scarno */}
+        {/* Flusso visivo – aggiornato con le tre azioni */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -101,8 +125,8 @@ export default function LandingPage() {
               </div>
               <ArrowRightCircle className="h-6 w-6 text-primary/60" />
               <div className="flex flex-col items-center rounded-xl bg-background px-4 py-3 shadow-sm">
-                <Ticket className="h-8 w-8 text-primary" />
-                <span className="mt-1 text-xs">Apre ticket</span>
+                <Megaphone className="h-8 w-8 text-primary" />
+                <span className="mt-1 text-xs">Legge post</span>
               </div>
               <ArrowRightCircle className="h-6 w-6 text-primary/60" />
               <div className="flex flex-col items-center rounded-xl bg-background px-4 py-3 shadow-sm">
@@ -112,48 +136,48 @@ export default function LandingPage() {
             </div>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
               <div className="flex flex-col items-center rounded-xl bg-background px-4 py-3 shadow-sm">
+                <FileText className="h-8 w-8 text-blue-500" />
+                <span className="mt-1 text-xs">Carica documento</span>
+              </div>
+              <ArrowRightCircle className="h-6 w-6 text-primary/60" />
+              <div className="flex flex-col items-center rounded-xl bg-background px-4 py-3 shadow-sm">
+                <Ticket className="h-8 w-8 text-orange-500" />
+                <span className="mt-1 text-xs">Apre ticket</span>
+              </div>
+              <ArrowRightCircle className="h-6 w-6 text-primary/60" />
+              <div className="flex flex-col items-center rounded-xl bg-background px-4 py-3 shadow-sm">
                 <CheckCircle className="h-8 w-8 text-green-500" />
-                <span className="mt-1 text-xs">Risposta</span>
-              </div>
-              <ArrowRightCircle className="h-6 w-6 text-primary/60" />
-              <div className="flex flex-col items-center rounded-xl bg-background px-4 py-3 shadow-sm">
-                <Bell className="h-8 w-8 text-primary" />
-                <span className="mt-1 text-xs">Notifica</span>
-              </div>
-              <ArrowRightCircle className="h-6 w-6 text-primary/60" />
-              <div className="flex flex-col items-center rounded-xl bg-background px-4 py-3 shadow-sm">
-                <Home className="h-8 w-8 text-primary" />
-                <span className="mt-1 text-xs">Risolto</span>
+                <span className="mt-1 text-xs">Risolve</span>
               </div>
             </div>
             <p className="mt-4 text-xs text-muted-foreground/70">
-              🔄 Tracciato, trasparente, senza intoppi
+              🔄 Tutto tracciato, trasparente, senza intoppi
             </p>
           </div>
         </motion.div>
       </section>
 
-      {/* ===== SERVIZI – copy beneficio ===== */}
+      {/* ===== SERVIZI – solo tre, con copy beneficio ===== */}
       <section id="services" className="py-14">
         <div className="max-w-2xl">
-          <h2 className="text-2xl font-bold sm:text-3xl">Tutto per un condominio connesso</h2>
+          <h2 className="text-2xl font-bold sm:text-3xl">Tre strumenti per un condominio connesso</h2>
           <p className="mt-3 text-muted-foreground">
-            Dalle segnalazioni ai pagamenti, fino ai fornitori: una sola piattaforma per tutti.
+            L’amministratore comunica, condivide e gestisce; i residenti leggono, consultano e segnalano. Tutto in una bacheca chiara.
           </p>
         </div>
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {services.map((service) => (
             <Link key={service.id} to={`/servizio/${service.id}`} className="group">
               <Card className="h-full border border-black/5 shadow-sm transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-xl hover:shadow-black/10">
                 <CardHeader>
-                  <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
                     <service.icon className="h-6 w-6" />
                   </div>
                   <CardTitle className="text-base">{service.title}</CardTitle>
                   <CardDescription className="text-sm">{service.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="mt-auto">
-                  <span className="text-sm font-semibold text-primary">Scopri</span>
+                  <span className="text-sm font-semibold text-primary group-hover:underline">Scopri di più →</span>
                 </CardContent>
               </Card>
             </Link>
@@ -161,7 +185,89 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== COME FUNZIONA – 3 passi asciutti ===== */}
+      {/* ===== PROSSIME FUNZIONALITÀ – Spese e Fornitori (con disclaimer legale) ===== */}
+      <motion.section
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        viewport={{ once: true, margin: "-40px" }}
+        className="py-14 border-t border-b border-primary/10 bg-gradient-to-r from-primary/5 via-transparent to-primary/5 rounded-2xl"
+      >
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <Badge variant="outline" className="mb-4 px-4 py-2 text-sm font-semibold border-primary/30 text-primary flex items-center justify-center gap-2 w-fit mx-auto">
+              <Rocket className="h-4 w-4" />
+              In arrivo nel 2027
+            </Badge>
+            <h2 className="text-3xl font-bold sm:text-4xl tracking-tight">
+              Presto anche la gestione <br className="sm:hidden" />
+              <span className="text-primary">spese e fornitori</span>
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Stiamo sviluppando due nuovi moduli per rendere il tuo condominio ancora più autonomo. 
+              Tutto integrato con la bacheca che già conosci.
+            </p>
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-2 text-left">
+              <Info className="h-5 w-5 flex-shrink-0 mt-0.5 text-amber-600" />
+              <p>
+                <span className="font-semibold">Nota importante:</span> Queste funzionalità sono in fase di sviluppo 
+                e <strong>non sono incluse</strong> nel servizio attuale. Saranno disponibili a partire dal 2027. 
+                Le tempistiche potrebbero variare.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {upcomingFeatures.map((feature) => (
+              <Card
+                key={feature.id}
+                className="relative border border-dashed border-primary/30 bg-card/40 backdrop-blur-sm shadow-sm transition-all duration-300 hover:shadow-md hover:border-primary/50"
+              >
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <feature.icon className="h-6 w-6" />
+                      </div>
+                      <CardTitle className="text-lg">{feature.title}</CardTitle>
+                    </div>
+                    <Badge className="bg-primary/10 text-primary border-primary/20 text-xs font-medium">
+                      In sviluppo
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-sm mt-2">
+                    {feature.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col gap-2 text-sm text-muted-foreground/70">
+                    <div className="flex items-center gap-1">
+                      <Rocket className="h-4 w-4 text-primary/50" />
+                      <span>Disponibile dal 2027 – non incluso al momento</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground/50">
+                      <Info className="h-3 w-3" />
+                      <span>Funzionalità in fase di sviluppo, soggetta a modifiche</span>
+                    </div>
+                  </div>
+                </CardContent>
+                <div className="absolute inset-0 pointer-events-none rounded-2xl bg-gradient-to-t from-white/5 to-transparent" />
+              </Card>
+            ))}
+          </div>
+
+          <div className="mt-8 text-center">
+            <Button variant="outline" className="border-primary/20 hover:bg-primary/5" asChild>
+              <a href="mailto:info@condoconnect.it?subject=Voglio%20essere%20avvisato%20su%20spese%20e%20fornitori">
+                <Bell className="mr-2 h-4 w-4" />
+                Avvisami quando sono disponibili
+              </a>
+            </Button>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* ===== COME FUNZIONA – tre passi chiari ===== */}
       <motion.section
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -175,10 +281,10 @@ export default function LandingPage() {
               In tre passi
             </Badge>
             <h2 className="text-3xl font-bold sm:text-4xl tracking-tight">
-              Come funziona CondoConnect
+              Da zero a condominio connesso in 5 minuti
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Amministratori e residenti: collaborazione trasparente, zero perdite di tempo.
+              Nessuna installazione, nessuna competenza tecnica. Basta un link e sei dentro.
             </p>
           </div>
 
@@ -190,7 +296,7 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-xl font-semibold">1. Registrati e invita</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  L’amministratore crea il condominio, i residenti entrano con un link. In 2 minuti sei online.
+                  L’amministratore crea il condominio, i residenti ricevono un link e si uniscono in pochi click.
                 </p>
                 <div className="mt-4 hidden md:block text-xs font-medium text-primary/70">
                   <ArrowRight className="inline h-4 w-4 ml-1" />
@@ -201,11 +307,11 @@ export default function LandingPage() {
             <Card className="relative border shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-lg hover:shadow-primary/5">
               <CardContent className="p-6 text-center">
                 <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-3xl text-primary">
-                  <Ticket className="h-8 w-8" />
+                  <Megaphone className="h-8 w-8" />
                 </div>
-                <h3 className="text-xl font-semibold">2. Ticket e post</h3>
+                <h3 className="text-xl font-semibold">2. Comunica e condividi</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  I residenti segnalano, l’amministratore risponde e pubblica aggiornamenti in tempo reale.
+                  Pubblica post, allega documenti con visibilità selettiva, apri e rispondi ai ticket. Tutto in tempo reale.
                 </p>
                 <div className="mt-4 hidden md:block text-xs font-medium text-primary/70">
                   <ArrowRight className="inline h-4 w-4 ml-1" />
@@ -218,9 +324,9 @@ export default function LandingPage() {
                 <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-3xl text-primary">
                   <Home className="h-8 w-8" />
                 </div>
-                <h3 className="text-xl font-semibold">3. Gestisci e cresci</h3>
+                <h3 className="text-xl font-semibold">3. Gestisci e consulta</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Monitora spese, approva preventivi, coordina i fornitori. Tutto in dashboard.
+                  Tutto rimane nella bacheca: i residenti trovano comunicazioni, documenti e lo stato dei ticket sempre aggiornato.
                 </p>
                 <div className="mt-4 hidden md:block text-xs font-medium text-primary/70">
                   <ArrowRight className="inline h-4 w-4 ml-1" />
@@ -230,12 +336,12 @@ export default function LandingPage() {
           </div>
 
           <p className="mt-10 text-center text-sm text-muted-foreground/70 max-w-md mx-auto">
-            ⚡ In arrivo: assemblee digitali e archivio avanzato.
+            ⚡ Prova gratuita 30 giorni – nessuna carta di credito, cancellati quando vuoi.
           </p>
         </div>
       </motion.section>
 
-      {/* ===== FAQ – risposte concise ===== */}
+      {/* ===== FAQ – con domanda sulla gratuità e sulla sicurezza ===== */}
       <motion.section
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -254,51 +360,58 @@ export default function LandingPage() {
           </div>
 
           <Accordion type="single" collapsible className="space-y-3">
-            <AccordionItem value="item-1" className="rounded-2xl border bg-card/50 px-4 transition-all data-[state=open]:bg-card data-[state=open]:shadow-sm">
+            <AccordionItem value="item-0" className="rounded-2xl border bg-card/50 px-4 transition-all data-[state=open]:bg-card data-[state=open]:shadow-sm">
               <AccordionTrigger className="py-4 text-base font-medium hover:no-underline [&>svg]:text-primary">
-                È gratuito?
+                La prova gratuita richiede la carta di credito?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                Sì, hai 30 giorni di prova gratuita con tutte le funzionalità, senza impegno.
-                Dopo la prova puoi scegliere il piano più adatto al tuo condominio.
+                No, assolutamente. Puoi provare tutte le funzionalità per 30 giorni senza inserire alcun dato di pagamento. 
+                Se dopo il periodo di prova decidi di continuare, potrai scegliere un piano, altrimenti il tuo account verrà sospeso senza alcun addebito.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-1" className="rounded-2xl border bg-card/50 px-4 transition-all data-[state=open]:bg-card data-[state=open]:shadow-sm">
+              <AccordionTrigger className="py-4 text-base font-medium hover:no-underline [&>svg]:text-primary">
+                I dati sono sicuri?
+              </AccordionTrigger>
+              <AccordionContent className="text-sm text-muted-foreground pb-4">
+                I dati viaggiano e sono salvati con crittografia HTTPS/TLS. Ogni condominio ha il proprio spazio isolato: nessun dato è visibile ad altri condomini. 
+                Non vendiamo i tuoi dati e puoi richiedere la cancellazione definitiva in qualsiasi momento.
               </AccordionContent>
             </AccordionItem>
 
             <AccordionItem value="item-2" className="rounded-2xl border bg-card/50 px-4 transition-all data-[state=open]:bg-card data-[state=open]:shadow-sm">
               <AccordionTrigger className="py-4 text-base font-medium hover:no-underline [&>svg]:text-primary">
-                I dati sono sicuri?
+                Servono competenze tecniche?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                I dati viaggiano e sono salvati con crittografia: HTTPS/TLS in transito.
-                <br/> Ogni condominio ha il proprio spazio separato: i dati di un condominio non sono visibili agli altri.
-                <br/> Non vendiamo dati a terzi. Puoi richiedere in ogni momento l’eliminazione definitiva dei dati del tuo condominio.
+                No. La piattaforma è progettata per essere intuitiva: l’amministratore scrive post, carica documenti e gestisce ticket con pochi click. I residenti leggono e segnalano senza alcuna formazione.
               </AccordionContent>
             </AccordionItem>
 
             <AccordionItem value="item-3" className="rounded-2xl border bg-card/50 px-4 transition-all data-[state=open]:bg-card data-[state=open]:shadow-sm">
               <AccordionTrigger className="py-4 text-base font-medium hover:no-underline [&>svg]:text-primary">
-                Servono competenze tecniche?
+                Cosa succede dopo i 30 giorni?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                No. È pensato per essere usato da chiunque, anche senza esperienza.
-                L’amministratore può invitare residenti e collaboratori in pochi click.
+                Riceverai un promemoria prima della scadenza. Potrai abbonarti a uno dei piani mensili o annuali, oppure interrompere il servizio in qualsiasi momento. I tuoi dati rimarranno disponibili per il download per 30 giorni dopo la scadenza.
               </AccordionContent>
             </AccordionItem>
 
             <AccordionItem value="item-4" className="rounded-2xl border bg-card/50 px-4 transition-all data-[state=open]:bg-card data-[state=open]:shadow-sm">
               <AccordionTrigger className="py-4 text-base font-medium hover:no-underline [&>svg]:text-primary">
-                Come gestisco le spese?
+                Le funzionalità spese e fornitori sono già disponibili?
               </AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground pb-4">
-                Puoi registrare le spese, caricare allegati e inviare notifiche ai residenti.
-                I pagamenti online arriveranno a breve.
+                No, sono in fase di sviluppo e saranno rilasciate a partire dal 2027. <strong>Non sono incluse</strong> nel servizio che stai acquistando oggi. 
+                Tutti gli utenti attivi verranno avvisati via email non appena saranno disponibili. (<strong>le tempistiche potrebbero variare</strong>)
               </AccordionContent>
             </AccordionItem>
           </Accordion>
         </div>
       </motion.section>
 
-      {/* ===== FOOTER – alleggerito ma completo ===== */}
+      {/* ===== FOOTER – aggiornato con disclaimer legale ===== */}
       <motion.footer
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -318,7 +431,7 @@ export default function LandingPage() {
                 </Badge>
               </div>
               <p className="max-w-xs text-sm text-muted-foreground leading-relaxed">
-                Ticket, comunicazioni, spese e fornitori: tutto in una dashboard.
+                Post, documenti e ticket per un condominio senza attriti.
               </p>
               <p className="text-xs text-muted-foreground/60">
                 <span className="font-medium">Email:</span>{" "}
@@ -401,6 +514,19 @@ export default function LandingPage() {
           </div>
 
           <div className="my-10 h-px bg-border" />
+
+          {/* Disclaimer legale aggiuntivo */}
+          <div className="mb-6 p-4 bg-primary/5 border border-primary/10 rounded-xl text-xs text-muted-foreground/70 text-center">
+            <p className="flex items-center justify-center gap-2">
+              <Info className="h-4 w-4 text-primary/50" />
+              <span>
+                <strong>Nota informativa:</strong> Le funzionalità indicate come "in arrivo" (gestione spese e fornitori) sono in fase di sviluppo e 
+                <strong> non costituiscono un obbligo contrattuale</strong>. Le tempistiche di rilascio potrebbero variare. 
+                Il servizio attuale include esclusivamente le funzionalità di Post, Documenti e Ticket.
+              </span>
+            </p>
+          </div>
+
           <div className="flex flex-col items-center gap-4 text-center text-xs text-muted-foreground sm:flex-row sm:justify-between sm:text-left">
             <p>
               &copy; {new Date().getFullYear()} CondoConnect. Tutti i diritti riservati.
@@ -411,7 +537,7 @@ export default function LandingPage() {
               <span>Via Roma, 1 – 00100 Milano</span>
             </div>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Strumento informativo – verifica con il tuo amministratore
+              Prova gratuita 30 giorni – nessuna carta richiesta
             </p>
           </div>
         </div>
