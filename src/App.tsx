@@ -19,6 +19,9 @@ import ResidentDocumentDetailPage from './pages/private/resident/ResidentDocumen
 import ResidentDocumentsPage from './pages/private/resident/ResidentDocumentsPage'
 import ResidentDashboardPage from './pages/private/resident/ResidentDashboardPage'
 import DeletedCondominium from './pages/public/DeletedCondominium'
+import ResidentTicketsPage from './pages/private/resident/ResidentTicketsPage'
+import ResidentCreateTicketPage from './pages/private/resident/ResidentCreateTicketPage'
+import ResidentTicketDetailPage from './pages/private/resident/ResidentTicketDetailPage'
 
 function App() {
 
@@ -54,6 +57,11 @@ function App() {
         <Route path="/resident/dashboard" element={<ResidentDashboardPage />} />
         <Route path="/resident/documents" element={<ResidentDocumentsPage />} />
         <Route path="/resident/document/:documentId" element={<ResidentDocumentDetailPage />} />
+
+        <Route path="/resident/tickets" element={<ResidentTicketsPage />} />
+        <Route path="/resident/tickets/create" element={<ResidentCreateTicketPage />} />
+        <Route path="/resident/ticket/:ticketId" element={<ResidentTicketDetailPage />} />
+
         <Route path="/resident/tickets" element={<div className="p-4 text-center text-muted-foreground">Ticket - in costruzione</div>} />
         <Route path="/resident/posts" element={<div className="p-4 text-center text-muted-foreground">Annunci - in costruzione</div>} />
       </Route>
