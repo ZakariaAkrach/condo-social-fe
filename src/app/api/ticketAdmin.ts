@@ -122,4 +122,16 @@ export const ticketAdminApi = {
     const response = await api.post(`${baseUrl(condominiumId)}/${ticketId}/attachment/${attachmentId}/confirm-upload`);
     return response.data;
   },
+
+  
+download: async (
+  condominiumId: string,
+  ticketId: string,
+  attachmentId: string
+) => {
+  const response = await api.get(
+    `${baseUrl(condominiumId)}/${ticketId}/download?attachmentId=${attachmentId}`
+  );
+  return response.data;
+},
 };

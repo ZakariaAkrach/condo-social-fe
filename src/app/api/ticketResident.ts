@@ -254,4 +254,23 @@ export const ticketResidentApi = {
       data: string;
     };
   },
+
+  download: async (
+  condominiumId: string,
+  ticketId: string,
+  attachmentId: string
+) => {
+  const response = await api.get(
+    `${defaultUrl}/${condominiumId}/resident/ticket/${ticketId}/download?attachmentId=${attachmentId}`
+  );
+  return response.data as {
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: {
+      downloadURL: string;
+      fileName: string;
+    };
+  };
+},
 };

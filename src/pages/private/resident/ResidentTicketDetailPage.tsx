@@ -1,7 +1,17 @@
 // pages/private/resident/ResidentTicketDetailPage.tsx
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
-import { ArrowLeft, Send, Paperclip, Calendar, MessageSquare, File, Download, Loader2, X, User } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  Paperclip,
+  Calendar,
+  MessageSquare,
+  File,
+  Download,
+  Loader2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +23,19 @@ import { it } from "date-fns/locale";
 import { useCondominium } from "@/components/residentDashboard/CondominiumContext";
 import { downloadFileFromStorage } from "@/auth/downloadFileFromStorage";
 import { cn } from "@/lib/utils";
-import { ticketResidentApi, type TicketAttachmentItem, type TicketDetail, type TicketMessage, type TicketStatus } from "@/app/api/ticketResident";
+import {
+  ticketResidentApi,
+  type TicketAttachmentItem,
+  type TicketDetail,
+  type TicketMessage,
+  type TicketStatus,
+} from "@/app/api/ticketResident";
 import { TicketUploadDialog } from "@/components/residentDashboard/TicketUploadDialog";
 
-const STATUS_CONFIG: Record<TicketStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+const STATUS_CONFIG: Record<
+  TicketStatus,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
   OPEN: { label: "Aperto", variant: "default" },
   IN_PROGRESS: { label: "In corso", variant: "secondary" },
   WAITING_USER: { label: "In attesa", variant: "outline" },
@@ -45,14 +64,13 @@ export default function ResidentTicketDetailPage() {
   const [hasMore, setHasMore] = useState(true);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
 
-  // Scroll in basso quando arrivano nuovi messaggi
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, []);
 
-  // Fetch ticket detail
+  // --- Fetch ticket detail ---
   const fetchTicketDetail = async () => {
     if (!condominiumId || !ticketId) return;
     try {
@@ -64,43 +82,45 @@ export default function ResidentTicketDetailPage() {
     }
   };
 
-  // Fetch messages con paginazione (caricamento dall'alto verso il basso)
-  const fetchMessages = useCallback(async (reset = true) => {
-    if (!condominiumId || !ticketId) return;
-    if (reset) {
-      setPage(0);
-      setMessages([]);
-      setHasMore(true);
-    }
-    if (!hasMore) return;
-    setLoadingMessages(true);
-    try {
-      const res = await ticketResidentApi.fetchMessages(condominiumId, ticketId, {
-        page: reset ? 0 : page,
-        size: 20,
-        sortBy: "createdAt",
-        ascending: true, // per avere i più vecchi prima
-      });
-      const newMessages = res.data || [];
+  // --- Fetch messages ---
+  const fetchMessages = useCallback(
+    async (reset = true) => {
+      if (!condominiumId || !ticketId) return;
       if (reset) {
-        setMessages(newMessages);
-      } else {
-        setMessages(prev => [...prev, ...newMessages]);
+        setPage(0);
+        setMessages([]);
+        setHasMore(true);
       }
-      setHasMore(newMessages.length === 20);
-      setPage(prev => prev + 1);
-      if (reset && newMessages.length > 0) {
-        // Scroll in basso solo al primo caricamento
-        setTimeout(scrollToBottom, 100);
+      if (!hasMore) return;
+      setLoadingMessages(true);
+      try {
+        const res = await ticketResidentApi.fetchMessages(condominiumId, ticketId, {
+          page: reset ? 0 : page,
+          size: 20,
+          sortBy: "createdAt",
+          ascending: true,
+        });
+        const newMessages = res.data || [];
+        if (reset) {
+          setMessages(newMessages);
+        } else {
+          setMessages((prev) => [...prev, ...newMessages]);
+        }
+        setHasMore(newMessages.length === 20);
+        setPage((prev) => prev + 1);
+        if (reset && newMessages.length > 0) {
+          setTimeout(scrollToBottom, 100);
+        }
+      } catch (error: any) {
+        toast.error("Errore nel caricamento dei messaggi");
+      } finally {
+        setLoadingMessages(false);
       }
-    } catch (error: any) {
-      toast.error("Errore nel caricamento dei messaggi");
-    } finally {
-      setLoadingMessages(false);
-    }
-  }, [condominiumId, ticketId, page, hasMore, scrollToBottom]);
+    },
+    [condominiumId, ticketId, page, hasMore, scrollToBottom]
+  );
 
-  // Fetch attachments
+  // --- Fetch attachments ---
   const fetchAttachments = async () => {
     if (!condominiumId || !ticketId) return;
     setLoadingAttachments(true);
@@ -119,7 +139,7 @@ export default function ResidentTicketDetailPage() {
     }
   };
 
-  // Load all data
+  // --- Load all data ---
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
@@ -130,21 +150,19 @@ export default function ResidentTicketDetailPage() {
     loadAll();
   }, [condominiumId, ticketId]);
 
-  // Scroll in basso quando i messaggi cambiano
   useEffect(() => {
     if (!isFirstLoad) {
       scrollToBottom();
     }
   }, [messages, scrollToBottom, isFirstLoad]);
 
-  // Send message
+  // --- Send message ---
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !ticket || sending) return;
     setSending(true);
     try {
       await ticketResidentApi.createMessage(condominiumId!, ticket.id, { message: newMessage });
       setNewMessage("");
-      // Ricarica i messaggi da capo per avere tutto aggiornato
       await fetchMessages(true);
       toast.success("Messaggio inviato");
     } catch (error: any) {
@@ -155,26 +173,47 @@ export default function ResidentTicketDetailPage() {
     }
   };
 
-  // Download attachment (placeholder)
-  const handleDownload = async (attachmentId: string, fileName: string, downloadUrl: string) => {
+  // ⭐ Download attachment – copiato da ResidentDocumentDetailPage
+  const handleDownload = async (attachmentId: string, fileName: string) => {
     try {
+      const response = await ticketResidentApi.download(
+        condominiumId!,
+        ticketId!,
+        attachmentId
+      );
+
+      const downloadUrl = response.data.downloadURL;
+      if (!downloadUrl) {
+        toast.error("URL di download non disponibile");
+        return;
+      }
+
+      // Scarica il file come blob usando l'utility
       const blob = await downloadFileFromStorage(downloadUrl);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
+
+      // Crea un URL per il blob
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Crea un link fittizio e avvia il download
+      const link = window.document.createElement("a");
+      link.href = blobUrl;
+      link.download = response.data.fileName || fileName;
+
+      window.document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+
+      // Rilascia l'URL del blob
+      URL.revokeObjectURL(blobUrl);
+
       toast.success("Download completato");
     } catch (error: any) {
-      const msg = error?.message || "Errore nel download";
-      toast.error(msg);
+      console.error("Errore durante il download", error);
+      toast.error(error?.message || "Errore durante il download");
     }
   };
 
-  // Delete attachment
+  // --- Delete attachment ---
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!confirm("Eliminare questo allegato?")) return;
     try {
@@ -187,7 +226,7 @@ export default function ResidentTicketDetailPage() {
     }
   };
 
-  // Carica altri messaggi (scroll verso l'alto)
+  // --- Load more messages ---
   const handleLoadMore = useCallback(() => {
     if (!loadingMessages && hasMore) {
       fetchMessages(false);
@@ -208,7 +247,9 @@ export default function ResidentTicketDetailPage() {
     return (
       <div className="p-4 text-center">
         <p className="text-muted-foreground">Ticket non trovato.</p>
-        <Button variant="link" onClick={() => navigate(-1)}>Torna indietro</Button>
+        <Button variant="link" onClick={() => navigate(-1)}>
+          Torna indietro
+        </Button>
       </div>
     );
   }
@@ -238,17 +279,23 @@ export default function ResidentTicketDetailPage() {
 
       {/* Corpo scrollabile */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 max-w-3xl mx-auto w-full">
-        {/* Info ticket (compatta) */}
+        {/* Info ticket */}
         <Card className="flex-shrink-0">
           <CardContent className="p-3 md:p-4 space-y-1 text-sm">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Calendar className="h-4 w-4" />
-              <span>Aperto il: {format(new Date(ticket.createdAt), "dd MMM yyyy HH:mm", { locale: it })}</span>
+              <span>
+                Aperto il:{" "}
+                {format(new Date(ticket.createdAt), "dd MMM yyyy HH:mm", { locale: it })}
+              </span>
             </div>
             {ticket.closedAt && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                <span>Chiuso il: {format(new Date(ticket.closedAt), "dd MMM yyyy HH:mm", { locale: it })}</span>
+                <span>
+                  Chiuso il:{" "}
+                  {format(new Date(ticket.closedAt), "dd MMM yyyy HH:mm", { locale: it })}
+                </span>
               </div>
             )}
             {ticket.description && (
@@ -262,41 +309,47 @@ export default function ResidentTicketDetailPage() {
         {/* Allegati compatti */}
         {loadingAttachments ? (
           <Skeleton className="h-12 w-full" />
-        ) : attachments.length > 0 && (
-          <Card className="flex-shrink-0">
-            <CardContent className="p-3 space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Allegati ({attachments.length})</p>
-              {attachments.map((att) => (
-                <div key={att.id} className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <File className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm truncate">{att.originalName}</span>
-                    <span className="text-xs text-muted-foreground">({(att.size / 1024).toFixed(1)} KB)</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7"
-                      onClick={() => toast.info("Download da implementare")}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    {canInteract && (
+        ) : (
+          attachments.length > 0 && (
+            <Card className="flex-shrink-0">
+              <CardContent className="p-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Allegati ({attachments.length})
+                </p>
+                {attachments.map((att) => (
+                  <div key={att.id} className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <File className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm truncate">{att.originalName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({(att.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => handleDeleteAttachment(att.id)}
+                        className="h-7 w-7"
+                        onClick={() => handleDownload(att.id, att.originalName)}
                       >
-                        <X className="h-4 w-4" />
+                        <Download className="h-4 w-4" />
                       </Button>
-                    )}
+                      {canInteract && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => handleDeleteAttachment(att.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                ))}
+              </CardContent>
+            </Card>
+          )
         )}
 
         {/* Chat - Messaggi */}
@@ -337,7 +390,7 @@ export default function ResidentTicketDetailPage() {
                       </Button>
                     </div>
                   )}
-                  {messages.map((msg, index) => {
+                  {messages.map((msg) => {
                     const isOwn = msg.firstName === "Me"; // Placeholder: sostituisci con logica reale
                     return (
                       <div
@@ -358,7 +411,9 @@ export default function ResidentTicketDetailPage() {
                           <p className="whitespace-pre-wrap">{msg.message}</p>
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <span>{msg.firstName} {msg.lastName}</span>
+                          <span>
+                            {msg.firstName} {msg.lastName}
+                          </span>
                           <span>•</span>
                           <span>{format(new Date(msg.createdAt), "HH:mm")}</span>
                         </div>
@@ -370,7 +425,7 @@ export default function ResidentTicketDetailPage() {
               )}
             </div>
 
-            {/* Input area fissa in basso */}
+            {/* Input area fissa */}
             {canInteract && (
               <div className="flex-shrink-0 p-3 border-t bg-background">
                 <div className="flex gap-2 items-end max-w-3xl mx-auto">
@@ -402,7 +457,11 @@ export default function ResidentTicketDetailPage() {
                       onClick={handleSendMessage}
                       disabled={!newMessage.trim() || sending}
                     >
-                      {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                      {sending ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Send className="h-5 w-5" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -412,7 +471,7 @@ export default function ResidentTicketDetailPage() {
         </Card>
       </div>
 
-      {/* Dialog per upload */}
+      {/* Upload dialog */}
       <TicketUploadDialog
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}

@@ -23,7 +23,6 @@ import {
     RefreshCw,
 } from "lucide-react";
 import { condominiumApi, type CondominiumDto } from "@/app/api/condominium";
-import { SpeseList } from "@/components/adminDashboard/SpeseList";
 import { MembriList } from "@/components/adminDashboard/MembriList";
 import { ComunicazioniList } from "@/components/adminDashboard/ComunicazioniList";
 import { ArchivioList } from "@/components/adminDashboard/ArchivioList";
@@ -159,13 +158,6 @@ export default function AdminCondominiumDetailPage() {
                                         <span className="hidden sm:inline">Ticket</span>
                                     </TabsTrigger>
                                     <TabsTrigger
-                                        value="spese"
-                                        className="rounded-full px-3 py-1.5 text-xs font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm hover:bg-muted/80 sm:px-4 sm:py-2 sm:text-sm"
-                                    >
-                                        <DollarSign className="h-4 w-4 sm:mr-2" />
-                                        <span className="hidden sm:inline">Spese</span>
-                                    </TabsTrigger>
-                                    <TabsTrigger
                                         value="membri"
                                         className="rounded-full px-3 py-1.5 text-xs font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm hover:bg-muted/80 sm:px-4 sm:py-2 sm:text-sm"
                                     >
@@ -193,9 +185,6 @@ export default function AdminCondominiumDetailPage() {
                         <div className="p-4 sm:p-6">
                             <TabsContent value="ticket">
                                 <AdminTicketList condominiumId={id!} />
-                            </TabsContent>
-                            <TabsContent value="spese">
-                                <SpeseList condominiumId={id!} />
                             </TabsContent>
                             <TabsContent value="membri">
                                 <MembriList condominiumId={id!} />

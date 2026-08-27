@@ -1,7 +1,7 @@
 // pages/private/resident/ResidentTicketsPage.tsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Plus, Search, Ticket as TicketIcon, Clock, AlertCircle, CheckCircle, XCircle, ChevronRight } from "lucide-react";
+import { Plus, Search, Ticket as TicketIcon, Clock, AlertCircle, CheckCircle, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,66 +37,100 @@ function getPriorityColor(priority: string): string {
 export default function ResidentTicketsPage() {
   const { condominiumId } = useCondominium();
   const navigate = useNavigate();
+
   const [tickets, setTickets] = useState<TicketListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "ALL">("ALL");
   const size = 10;
 
   const debounceTimeout = useRef<number | null>(null);
+  const lastTicketRef = useRef<HTMLDivElement | null>(null);
+  const isFetching = useRef(false);
 
-  // fetchTickets accetta parametri opzionali per override
+  // --- Funzione di fetch (reset o load more) ---
   const fetchTickets = useCallback(
-    async (resetPage = true, overrideStatus?: TicketStatus | "ALL", overrideSearch?: string) => {
+    async (reset = true, overrideStatus?: TicketStatus | "ALL", overrideSearch?: string) => {
       if (!condominiumId) return;
-      setLoading(true);
+      if (isFetching.current) return; // previene chiamate multiple
+      isFetching.current = true;
+
+      const effectiveStatus = overrideStatus !== undefined ? overrideStatus : statusFilter;
+      const effectiveSearch = overrideSearch !== undefined ? overrideSearch : search;
+      const currentPage = reset ? 0 : page;
+
+      // Imposta lo stato di caricamento
+      if (reset) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+
       try {
-        const effectiveStatus = overrideStatus !== undefined ? overrideStatus : statusFilter;
-        const effectiveSearch = overrideSearch !== undefined ? overrideSearch : search;
         const response = await ticketResidentApi.fetchTickets(condominiumId, {
-          page: resetPage ? 0 : page,
+          page: currentPage,
           size,
           sortBy: "createdAt",
           ascending: false,
           status: effectiveStatus !== "ALL" ? effectiveStatus : undefined,
           title: effectiveSearch || undefined,
         });
-        setTickets(response.data || []);
-        setTotalPages(response.totalPages || 0);
-        if (resetPage) setPage(0);
+
+        const newTickets = response.data || [];
+        const totalPages = response.totalPages || 0;
+        const nextPage = currentPage + 1;
+
+        setHasMore(nextPage < totalPages);
+        setPage(nextPage);
+
+        if (reset) {
+          setTickets(newTickets);
+        } else {
+          setTickets((prev) => [...prev, ...newTickets]);
+        }
       } catch (error: any) {
         const msg = error?.response?.data?.message || "Errore nel caricamento dei ticket";
         toast.error(msg);
         console.error(error);
       } finally {
-        setLoading(false);
+        if (reset) {
+          setLoading(false);
+        } else {
+          setLoadingMore(false);
+        }
+        isFetching.current = false;
       }
     },
     [condominiumId, page, size, statusFilter, search]
   );
 
-  // Caricamento iniziale
+  // --- Caricamento iniziale o cambio condominio ---
   useEffect(() => {
     if (condominiumId) {
+      setTickets([]);
+      setPage(0);
+      setHasMore(true);
       fetchTickets(true);
     }
-  }, [condominiumId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [condominiumId]);
 
+  // --- Gestione ricerca con debounce ---
   const handleSearchChange = (value: string) => {
     setSearch(value);
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
     }
     debounceTimeout.current = setTimeout(() => {
-      // Passa il nuovo valore di ricerca, mantiene il filtro corrente
       fetchTickets(true, statusFilter, value);
     }, 500);
   };
 
+  // --- Cambio filtro stato ---
   const handleStatusChange = (value: string) => {
-    // Cancella eventuale debounce in corso
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current);
       debounceTimeout.current = null;
@@ -104,15 +138,18 @@ export default function ResidentTicketsPage() {
     const newStatus = value as TicketStatus | "ALL";
     setStatusFilter(newStatus);
     setPage(0);
-    // Passa il nuovo stato e la ricerca corrente
+    setHasMore(true);
+    setTickets([]);
     fetchTickets(true, newStatus, search);
   };
 
-  const goToPage = (newPage: number) => {
-    setPage(newPage);
+  // --- Carica altri ticket (load more) ---
+  const handleLoadMore = () => {
+    if (isFetching.current || loadingMore || !hasMore || loading) return;
     fetchTickets(false);
   };
 
+  // --- Navigazione ---
   const goToDetail = (ticketId: string) => {
     navigate(`/resident/ticket/${ticketId}`);
   };
@@ -121,6 +158,7 @@ export default function ResidentTicketsPage() {
     navigate("/resident/tickets/create");
   };
 
+  // --- Badge stato ---
   const getStatusBadge = (status: TicketStatus) => {
     const config = STATUS_CONFIG[status];
     return (
@@ -131,6 +169,7 @@ export default function ResidentTicketsPage() {
     );
   };
 
+  // --- Se non c'è condominio ---
   if (!condominiumId) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -141,6 +180,7 @@ export default function ResidentTicketsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
+      {/* Intestazione */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Ticket</h1>
@@ -151,6 +191,7 @@ export default function ResidentTicketsPage() {
         </Button>
       </div>
 
+      {/* Filtri */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -176,13 +217,17 @@ export default function ResidentTicketsPage() {
         </Select>
       </div>
 
-      {loading ? (
+      {/* Caricamento iniziale */}
+      {loading && tickets.length === 0 && (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full rounded-xl" />
           ))}
         </div>
-      ) : tickets.length === 0 ? (
+      )}
+
+      {/* Lista vuota */}
+      {!loading && tickets.length === 0 && (
         <Card className="p-8 text-center">
           <TicketIcon className="h-12 w-12 mx-auto text-muted-foreground" />
           <p className="mt-2 text-muted-foreground">Nessun ticket trovato</p>
@@ -190,12 +235,17 @@ export default function ResidentTicketsPage() {
             Crea il tuo primo ticket
           </Button>
         </Card>
-      ) : (
-        <>
-          <div className="space-y-3">
-            {tickets.map((ticket) => (
+      )}
+
+      {/* Lista ticket */}
+      {tickets.length > 0 && (
+        <div className="space-y-3">
+          {tickets.map((ticket, index) => {
+            const isLast = index === tickets.length - 1;
+            return (
               <Card
                 key={ticket.id}
+                ref={isLast ? lastTicketRef : null}
                 className="cursor-pointer hover:shadow-md transition-all active:scale-[0.98]"
                 onClick={() => goToDetail(ticket.id)}
               >
@@ -220,31 +270,37 @@ export default function ResidentTicketsPage() {
                   )}
                 </CardContent>
               </Card>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+      )}
 
-          {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-3 mt-4">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 0}
-                onClick={() => goToPage(page - 1)}
-              >
-                Precedente
-              </Button>
-              <span className="text-sm">Pagina {page + 1} di {totalPages}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages - 1}
-                onClick={() => goToPage(page + 1)}
-              >
-                Successiva
-              </Button>
-            </div>
-          )}
-        </>
+      {/* Pulsante "Carica altri ticket" */}
+      {!loading && hasMore && tickets.length > 0 && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="gap-2"
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Caricamento...
+              </>
+            ) : (
+              "Carica altri ticket"
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* Fine lista */}
+      {!loading && !hasMore && tickets.length > 0 && (
+        <p className="text-center text-xs text-muted-foreground pt-2">
+          — Fine lista —
+        </p>
       )}
     </div>
   );

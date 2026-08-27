@@ -33,8 +33,6 @@ const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
     { icon: HouseIcon, label: "Condomini", path: "/admin/condomini" },
     { icon: Ticket, label: "Ticket", path: "/admin/tickets" },
-    { icon: DollarSign, label: "Spese", path: "/admin/expenses" },
-    { icon: Truck, label: "Fornitori", path: "/admin/suppliers" },
     { icon: MessageSquare, label: "Comunicazioni", path: "/admin/posts" },
     { icon: Archive, label: "Archivio", path: "/admin/archive" },
     { icon: Users, label: "Residenti", path: "/admin/residents" },

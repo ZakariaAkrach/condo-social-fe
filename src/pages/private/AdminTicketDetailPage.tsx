@@ -4,7 +4,6 @@ import { useParams, useNavigate } from "react-router";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -25,10 +24,12 @@ import {
   X,
   AlertCircle,
   CheckCircle,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ticketAdminApi } from "@/app/api/ticketAdmin";
 import { uploadFileToStorage } from "@/auth/uploadStorage";
+import { downloadFileFromStorage } from "@/auth/downloadFileFromStorage";
 import {
   Table,
   TableBody,
@@ -80,6 +81,8 @@ const STATUS_CONFIG: Record<
 > = {
   OPEN: { label: "Aperto", variant: "default" },
   IN_PROGRESS: { label: "In corso", variant: "secondary" },
+  WAITING_USER: { label: "In attesa utente", variant: "outline" },
+  WAITING_ADMIN: { label: "In attesa admin", variant: "outline" },
   CLOSED: { label: "Chiuso", variant: "destructive" },
 };
 
@@ -105,7 +108,6 @@ export default function AdminTicketDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Messaggi pubblici e interni (separati)
   const [publicMessages, setPublicMessages] = useState<any[]>([]);
   const [internalMessages, setInternalMessages] = useState<any[]>([]);
   const [loadingPublic, setLoadingPublic] = useState(true);
@@ -116,13 +118,11 @@ export default function AdminTicketDetailPage() {
   const [internalTotalPages, setInternalTotalPages] = useState(0);
   const size = 10;
 
-  // Allegati
   const [attachments, setAttachments] = useState<any[]>([]);
   const [loadingAttachments, setLoadingAttachments] = useState(true);
   const [attPage, setAttPage] = useState(0);
   const [attTotalPages, setAttTotalPages] = useState(0);
 
-  // Stati per dialog
   const [changeStatusDialog, setChangeStatusDialog] = useState<{
     open: boolean;
     status: string;
@@ -135,19 +135,19 @@ export default function AdminTicketDetailPage() {
     open: false,
   });
 
-  // Form per invio messaggio (usato in entrambi i tab)
   const [newPublicMessage, setNewPublicMessage] = useState("");
   const [newInternalMessage, setNewInternalMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Upload attachment
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadStep, setUploadStep] = useState<"idle" | "getting-url" | "uploading" | "confirming">("idle");
+  const [uploadStep, setUploadStep] = useState<
+    "idle" | "getting-url" | "uploading" | "confirming"
+  >("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Fetch ticket detail ---
+  // --- Fetch functions ---
   const fetchDetail = useCallback(async () => {
     if (!condominiumId || !ticketId) return;
     setLoading(true);
@@ -161,7 +161,6 @@ export default function AdminTicketDetailPage() {
     }
   }, [condominiumId, ticketId]);
 
-  // --- Fetch messaggi pubblici ---
   const fetchPublicMessages = useCallback(
     async (page = 0) => {
       if (!condominiumId || !ticketId) return;
@@ -186,7 +185,6 @@ export default function AdminTicketDetailPage() {
     [condominiumId, ticketId]
   );
 
-  // --- Fetch messaggi interni (privati) ---
   const fetchInternalMessages = useCallback(
     async (page = 0) => {
       if (!condominiumId || !ticketId) return;
@@ -211,7 +209,6 @@ export default function AdminTicketDetailPage() {
     [condominiumId, ticketId]
   );
 
-  // --- Fetch allegati ---
   const fetchAttachments = useCallback(
     async (page = 0) => {
       if (!condominiumId || !ticketId) return;
@@ -242,7 +239,7 @@ export default function AdminTicketDetailPage() {
       fetchInternalMessages(0);
       fetchAttachments(0);
     }
-  }, [condominiumId, ticketId, fetchDetail, fetchPublicMessages, fetchInternalMessages, fetchAttachments]);
+  }, [condominiumId, ticketId]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -256,7 +253,7 @@ export default function AdminTicketDetailPage() {
     toast.info("Aggiornato");
   };
 
-  // --- Change status ---
+  // --- Action handlers ---
   const handleChangeStatus = async () => {
     if (!ticketId || !changeStatusDialog.status) return;
     setIsSubmitting(true);
@@ -276,7 +273,6 @@ export default function AdminTicketDetailPage() {
     }
   };
 
-  // --- Assign ticket ---
   const handleAssign = async () => {
     if (!ticketId || !assignDialog.email) return;
     setIsSubmitting(true);
@@ -294,7 +290,6 @@ export default function AdminTicketDetailPage() {
     }
   };
 
-  // --- Chiudi ticket (azione rapida) ---
   const handleCloseTicket = async () => {
     if (!ticketId) return;
     setIsSubmitting(true);
@@ -314,7 +309,6 @@ export default function AdminTicketDetailPage() {
     }
   };
 
-  // --- Send message (public) ---
   const handleSendPublicMessage = async () => {
     if (!newPublicMessage.trim()) return;
     setIsSubmitting(true);
@@ -333,7 +327,6 @@ export default function AdminTicketDetailPage() {
     }
   };
 
-  // --- Send message (internal) ---
   const handleSendInternalMessage = async () => {
     if (!newInternalMessage.trim()) return;
     setIsSubmitting(true);
@@ -352,7 +345,7 @@ export default function AdminTicketDetailPage() {
     }
   };
 
-  // --- Upload attachment ---
+  // --- Upload handlers ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
@@ -371,9 +364,13 @@ export default function AdminTicketDetailPage() {
         size: file.size,
         contentType: file.type || "application/octet-stream",
         extension,
-        visibility: "PUBLIC", // default
+        visibility: "PUBLIC",
       };
-      const response = await ticketAdminApi.uploadAttachment(condominiumId!, ticketId!, payload);
+      const response = await ticketAdminApi.uploadAttachment(
+        condominiumId!,
+        ticketId!,
+        payload
+      );
       const { ticketAttachmentId, uploadUrl } = response.data;
 
       setUploadStep("uploading");
@@ -394,6 +391,47 @@ export default function AdminTicketDetailPage() {
     }
   };
 
+  // ⭐ Download attachment – copiato da ResidentDocumentDetailPage
+  const handleDownload = async (attachmentId: string, fileName: string) => {
+    try {
+      const response = await ticketAdminApi.download(
+        condominiumId!,
+        ticketId!,
+        attachmentId
+      );
+
+      const downloadUrl = response.data.downloadURL;
+      if (!downloadUrl) {
+        toast.error("URL di download non disponibile");
+        return;
+      }
+
+      // Scarica il file come blob usando l'utility
+      const blob = await downloadFileFromStorage(downloadUrl);
+
+      // Crea un URL per il blob
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Crea un link fittizio e avvia il download
+      const link = window.document.createElement("a");
+      link.href = blobUrl;
+      link.download = response.data.fileName || fileName;
+
+      window.document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      // Rilascia l'URL del blob
+      URL.revokeObjectURL(blobUrl);
+
+      toast.success("Download completato");
+    } catch (err: any) {
+      console.error("Errore durante il download", err);
+      toast.error(err?.message || "Errore durante il download");
+    }
+  };
+
+  // --- Utilities ---
   const formatDate = (date: string) => {
     if (!date) return "—";
     return new Date(date).toLocaleString("it-IT", {
@@ -413,7 +451,6 @@ export default function AdminTicketDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
-  // Render dei messaggi in una lista
   const renderMessageList = (
     messages: any[],
     loading: boolean,
@@ -510,7 +547,6 @@ export default function AdminTicketDetailPage() {
           <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
           </Button>
-          {/* Pulsante Chiudi ticket - visibile solo se non è già chiuso */}
           {!isClosed && (
             <Button
               variant="destructive"
@@ -546,7 +582,7 @@ export default function AdminTicketDetailPage() {
         </div>
       </div>
 
-      {/* Info ticket */}
+      {/* Dettagli ticket */}
       <Card>
         <CardHeader>
           <CardTitle>Dettagli ticket</CardTitle>
@@ -602,7 +638,7 @@ export default function AdminTicketDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Messaggi con Tabs: PUBLIC e INTERNAL */}
+      {/* Messaggi */}
       <Card>
         <CardHeader>
           <CardTitle>Messaggi</CardTitle>
@@ -613,7 +649,6 @@ export default function AdminTicketDetailPage() {
               <TabsTrigger value="public">Pubblici</TabsTrigger>
               <TabsTrigger value="internal">Interni (Privati)</TabsTrigger>
             </TabsList>
-            {/* Tab Pubblici */}
             <TabsContent value="public" className="space-y-4">
               {renderMessageList(
                 publicMessages,
@@ -643,8 +678,6 @@ export default function AdminTicketDetailPage() {
                 </Button>
               </div>
             </TabsContent>
-
-            {/* Tab Interni */}
             <TabsContent value="internal" className="space-y-4">
               {renderMessageList(
                 internalMessages,
@@ -679,7 +712,7 @@ export default function AdminTicketDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Allegati (invariati) */}
+      {/* Allegati */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Allegati</CardTitle>
@@ -707,6 +740,7 @@ export default function AdminTicketDetailPage() {
                     <TableHead>Dimensione</TableHead>
                     <TableHead>Caricato da</TableHead>
                     <TableHead>Visibilità</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -721,6 +755,16 @@ export default function AdminTicketDetailPage() {
                         {att.firstName} {att.lastName}
                       </TableCell>
                       <TableCell>{att.visibility}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7"
+                          onClick={() => handleDownload(att.id, att.originalName)}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -753,7 +797,7 @@ export default function AdminTicketDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Dialog Cambio Stato */}
+      {/* Dialog Cambio stato */}
       <Dialog
         open={changeStatusDialog.open}
         onOpenChange={(open) =>
@@ -833,7 +877,7 @@ export default function AdminTicketDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog di conferma chiusura ticket */}
+      {/* Dialog Conferma chiusura */}
       <Dialog
         open={closeTicketDialog.open}
         onOpenChange={(open) => !open && setCloseTicketDialog({ open: false })}
@@ -842,7 +886,8 @@ export default function AdminTicketDetailPage() {
           <DialogHeader>
             <DialogTitle>Chiudi ticket</DialogTitle>
             <DialogDescription>
-              Sei sicuro di voler chiudere questo ticket? L'operazione è reversibile (puoi sempre riaprirlo cambiando stato).
+              Sei sicuro di voler chiudere questo ticket? L'operazione è reversibile
+              (puoi sempre riaprirlo cambiando stato).
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -868,7 +913,7 @@ export default function AdminTicketDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Upload Allegato */}
+      {/* Dialog Upload */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
         <DialogContent>
           <DialogHeader>
