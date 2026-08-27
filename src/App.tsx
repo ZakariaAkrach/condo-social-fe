@@ -22,6 +22,7 @@ import DeletedCondominium from './pages/public/DeletedCondominium'
 import ResidentTicketsPage from './pages/private/resident/ResidentTicketsPage'
 import ResidentCreateTicketPage from './pages/private/resident/ResidentCreateTicketPage'
 import ResidentTicketDetailPage from './pages/private/resident/ResidentTicketDetailPage'
+import AdminTicketDetailPage from './pages/private/AdminTicketDetailPage'
 
 function App() {
 
@@ -51,6 +52,8 @@ function App() {
         <Route path="/admin/condomini" element={<AdminCondominiListPage />} />
         <Route path="/admin/condomini/:id" element={<AdminCondominiumDetailPage />} />
         <Route path="/admin/condomini/:condominiumId/documenti/:documentId" element={<DocumentDetailPage />} />
+
+        <Route path="/admin/condomini/:condominiumId/tickets/:ticketId" element={<AdminTicketDetailPage />} />
       </Route>
 
       <Route element={<ProtectedRoute><ResidentDashboardLayout /></ProtectedRoute>}>
