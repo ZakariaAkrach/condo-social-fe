@@ -1,3 +1,4 @@
+// src/pages/private/DocumentDetailPage.tsx
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader2,
@@ -21,6 +22,8 @@ import {
   MoreHorizontal,
   Upload,
   X,
+  Globe,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,6 +56,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { documentAdminApi } from "@/app/api/documentAdmin";
 import { uploadFileToStorage } from "@/auth/uploadStorage";
 import { format, formatDistanceToNow, addDays, differenceInDays } from "date-fns";
@@ -68,6 +72,7 @@ interface DocumentDetail {
   createdAt: string;
   status: "DRAFT" | "ACTIVE" | "DELETED";
   deletedAt?: string;
+  publicForCondominium?: boolean;
 }
 
 interface DocumentVersion {
@@ -120,6 +125,7 @@ export default function DocumentDetailPage() {
 
   const [selectedToAdd, setSelectedToAdd] = useState<Set<string>>(new Set());
   const [selectedToRemove, setSelectedToRemove] = useState<Set<string>>(new Set());
+  const [isPublicForCondominium, setIsPublicForCondominium] = useState<boolean>(false);
 
   const [newVersionDialogOpen, setNewVersionDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -153,6 +159,9 @@ export default function DocumentDetailPage() {
       setDocument(response.data);
       if (response.data.status !== "DELETED") {
         setTempStatus(response.data.status);
+      }
+      if (response.data.publicForCondominium !== undefined) {
+        setIsPublicForCondominium(response.data.publicForCondominium);
       }
     } catch (err: any) {
       console.error("Errore fetch dettaglio documento", err);
@@ -200,6 +209,9 @@ export default function DocumentDetailPage() {
       });
       const data = response.data || [];
       setVisibility(data);
+      if (response.publicForCondominium !== undefined) {
+        setIsPublicForCondominium(response.publicForCondominium);
+      }
     } catch (err: any) {
       console.error("Errore fetch visibilità", err);
       const msg = err?.response?.data?.message || "Errore nel caricamento degli accessi";
@@ -265,10 +277,8 @@ export default function DocumentDetailPage() {
     }
   };
 
-  // Esclude gli amministratori dalla selezione "Seleziona tutti" nella scheda Rimuovi
   const toggleAllRemove = () => {
     const visibleUserIds = new Set(visibility.map((v) => v.userId));
-    // Filtra i membri visibili escludendo i CONDO_ADMIN
     const visibleMembers = allMembers.filter(
       (m) => visibleUserIds.has(m.id) && m.role !== "CONDO_ADMIN"
     );
@@ -276,6 +286,32 @@ export default function DocumentDetailPage() {
       setSelectedToRemove(new Set());
     } else {
       setSelectedToRemove(new Set(visibleMembers.map((m) => m.id)));
+    }
+  };
+
+  const handleTogglePublic = async () => {
+    if (!condominiumId || !documentId) return;
+    
+    const newValue = !isPublicForCondominium;
+    setActionLoading(true);
+    try {
+      await documentAdminApi.updateVisibility(condominiumId, documentId, {
+        addMembers: [],
+        removeMembers: [],
+        isPublicForCondominium: newValue,
+      });
+      setIsPublicForCondominium(newValue);
+      toast.success(
+        newValue 
+          ? "Documento reso pubblico per tutto il condominio" 
+          : "Documento reso privato"
+      );
+      await fetchVisibility();
+      await fetchDetail();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Errore durante l'aggiornamento");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -290,7 +326,6 @@ export default function DocumentDetailPage() {
       .map((userId) => userIdToMemberId.get(userId))
       .filter((id): id is string => id !== undefined);
 
-    // Esclude gli amministratori dalla lista di rimozione (doppia sicurezza)
     const removeUserIds = Array.from(selectedToRemove).filter((userId) => {
       const member = allMembers.find((m) => m.id === userId);
       return member && member.role !== "CONDO_ADMIN";
@@ -307,22 +342,14 @@ export default function DocumentDetailPage() {
 
     setActionLoading(true);
     try {
-      if (removeMemberIds.length > 0) {
-        await documentAdminApi.updateVisibility(condominiumId, documentId, {
-          addMembers: [],
-          removeMembers: removeMemberIds,
-          addAll: false,
-        });
-      }
-      if (addMemberIds.length > 0) {
-        await documentAdminApi.updateVisibility(condominiumId, documentId, {
-          addMembers: addMemberIds,
-          removeMembers: [],
-          addAll: false,
-        });
-      }
+      await documentAdminApi.updateVisibility(condominiumId, documentId, {
+        addMembers: addMemberIds,
+        removeMembers: removeMemberIds,
+        isPublicForCondominium: isPublicForCondominium,
+      });
       toast.success("Visibilità aggiornata con successo");
       await fetchVisibility();
+      await fetchDetail();
       setVisibilityDialogOpen(false);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Errore durante l'aggiornamento");
@@ -430,7 +457,6 @@ export default function DocumentDetailPage() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
-      // Rimuove l'estensione dal nome del file
       const nameWithoutExtension = file.name.replace(/\.[^.]+$/, '');
       setVersionName(nameWithoutExtension);
     }
@@ -546,7 +572,6 @@ export default function DocumentDetailPage() {
     }
   };
 
-  // CORREZIONE: plurale e arrotondamento con Math.ceil
   const getDeletionCountdown = () => {
     if (!document?.deletedAt) return null;
     const deletionDate = addDays(new Date(document.deletedAt), 7);
@@ -722,6 +747,15 @@ export default function DocumentDetailPage() {
           <Users className="h-4 w-4" />
           Accesso: {visibility.length} utenti
         </span>
+        {isPublicForCondominium && (
+          <>
+            <Separator orientation="vertical" className="h-4" />
+            <span className="flex items-center gap-1 text-green-600">
+              <Globe className="h-4 w-4" />
+              Pubblico
+            </span>
+          </>
+        )}
         <Separator orientation="vertical" className="h-4" />
         <span className="flex items-center gap-1">
           <Clock className="h-4 w-4" />
@@ -845,13 +879,49 @@ export default function DocumentDetailPage() {
           )}
         </TabsContent>
 
-        {/* SCHEDA ACCESSO CON AVVISO INFORMATIVO */}
+        {/* SCHEDA ACCESSO CON AVVISO INFORMATIVO E TOGGLE PUBLICO/PRIVATO */}
         <TabsContent value="permissions" className="space-y-4 pt-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-medium">Utenti con accesso</h3>
             <Button size="sm" variant="outline" onClick={handleOpenVisibilityDialog}>
               <Users className="h-4 w-4 mr-2" />
               Gestisci accesso
+            </Button>
+          </div>
+
+          {/* Toggle Pubblico/Privato */}
+          <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+            <div className="flex items-center gap-3">
+              {isPublicForCondominium ? (
+                <Globe className="h-5 w-5 text-green-600" />
+              ) : (
+                <Lock className="h-5 w-5 text-muted-foreground" />
+              )}
+              <div>
+                <p className="text-sm font-medium">
+                  {isPublicForCondominium ? "📢 Pubblico per tutto il condominio" : "🔒 Visibilità limitata"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {isPublicForCondominium 
+                    ? "Tutti i membri del condominio possono vedere questo documento" 
+                    : "Solo gli utenti selezionati possono vedere questo documento"}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant={isPublicForCondominium ? "default" : "outline"}
+              size="sm"
+              onClick={handleTogglePublic}
+              disabled={actionLoading}
+              className="gap-2"
+            >
+              {actionLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isPublicForCondominium ? (
+                "Rendi privato"
+              ) : (
+                "Rendi pubblico"
+              )}
             </Button>
           </div>
 
@@ -943,6 +1013,36 @@ export default function DocumentDetailPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Toggle Pubblico/Privato nel dialog */}
+          <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
+            <div className="flex items-center gap-2">
+              {isPublicForCondominium ? (
+                <Globe className="h-4 w-4 text-green-600" />
+              ) : (
+                <Lock className="h-4 w-4 text-muted-foreground" />
+              )}
+              <div>
+                <Label htmlFor="public-toggle-dialog" className="text-sm font-medium cursor-pointer">
+                  {isPublicForCondominium ? "Pubblico per tutto il condominio" : "Visibilità limitata"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {isPublicForCondominium 
+                    ? "Tutti i membri possono vedere questo documento" 
+                    : "Solo gli utenti selezionati possono vedere questo documento"}
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="public-toggle-dialog"
+              checked={isPublicForCondominium}
+              onCheckedChange={(checked) => {
+                setIsPublicForCondominium(checked);
+              }}
+            />
+          </div>
+
+          <Separator />
+
           {membersLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1020,7 +1120,6 @@ export default function DocumentDetailPage() {
                 <TabsContent value="remove" className="flex-1 overflow-y-auto py-4 space-y-2">
                   {(() => {
                     const visibleUserIds = new Set(visibility.map((v) => v.userId));
-                    // Filtra i membri visibili: esclude i CONDO_ADMIN dalla lista rimovibile
                     const visibleMembers = allMembers.filter(
                       (m) => visibleUserIds.has(m.id) && m.role !== "CONDO_ADMIN"
                     );
@@ -1085,7 +1184,10 @@ export default function DocumentDetailPage() {
                   <div className="flex gap-4">
                     <span className="text-green-600">➕ {selectedToAdd.size} da aggiungere</span>
                     <span className="text-red-600">➖ {selectedToRemove.size} da rimuovere</span>
-                    {selectedToAdd.size === 0 && selectedToRemove.size === 0 && (
+                    {isPublicForCondominium && (
+                      <span className="text-blue-600">🌐 Pubblico</span>
+                    )}
+                    {selectedToAdd.size === 0 && selectedToRemove.size === 0 && !isPublicForCondominium && (
                       <span className="text-muted-foreground">Nessuna modifica</span>
                     )}
                   </div>
@@ -1182,7 +1284,6 @@ export default function DocumentDetailPage() {
                 id="version-name"
                 value={versionName}
                 onChange={(e) => {
-                  // Rimuove tutti i punti (.) dal testo inserito
                   const value = e.target.value.replace(/\./g, '');
                   setVersionName(value);
                 }}

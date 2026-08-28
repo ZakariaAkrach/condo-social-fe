@@ -23,6 +23,9 @@ import ResidentTicketsPage from './pages/private/resident/ResidentTicketsPage'
 import ResidentCreateTicketPage from './pages/private/resident/ResidentCreateTicketPage'
 import ResidentTicketDetailPage from './pages/private/resident/ResidentTicketDetailPage'
 import AdminTicketDetailPage from './pages/private/AdminTicketDetailPage'
+import AdminPostsListPage from './pages/private/AdminPostsListPage'
+import AdminPostCreatePage from './pages/private/AdminPostCreatePage'
+import AdminPostDetailPage from './pages/private/AdminPostDetailPage'
 
 function App() {
 
@@ -54,6 +57,10 @@ function App() {
         <Route path="/admin/condomini/:condominiumId/documenti/:documentId" element={<DocumentDetailPage />} />
 
         <Route path="/admin/condomini/:condominiumId/tickets/:ticketId" element={<AdminTicketDetailPage />} />
+
+        <Route path="/admin/condomini/:condominiumId/posts" element={<AdminPostsListPage />} />
+        <Route path="/admin/condomini/:condominiumId/posts/create" element={<AdminPostCreatePage />} />
+        <Route path="/admin/condomini/:condominiumId/posts/:postId" element={<AdminPostDetailPage />} />
       </Route>
 
       <Route element={<ProtectedRoute><ResidentDashboardLayout /></ProtectedRoute>}>

@@ -158,7 +158,7 @@ export const documentAdminApi = {
         data: {
             addMembers?: string[];
             removeMembers?: string[];
-            addAll?: boolean;
+            isPublicForCondominium?: boolean;
         }
     ) => {
         const response = await api.post(

@@ -24,9 +24,9 @@ import {
 } from "lucide-react";
 import { condominiumApi, type CondominiumDto } from "@/app/api/condominium";
 import { MembriList } from "@/components/adminDashboard/MembriList";
-import { ComunicazioniList } from "@/components/adminDashboard/ComunicazioniList";
 import { ArchivioList } from "@/components/adminDashboard/ArchivioList";
 import { AdminTicketList } from "@/components/adminDashboard/AdminTicketList";
+import { AdminPostsList } from "@/components/adminDashboard/AdminPostsList";
 
 export default function AdminCondominiumDetailPage() {
     const { id } = useParams<{ id: string }>();
@@ -190,7 +190,7 @@ export default function AdminCondominiumDetailPage() {
                                 <MembriList condominiumId={id!} />
                             </TabsContent>
                             <TabsContent value="comunicazioni">
-                                <ComunicazioniList condominiumId={id!} />
+                                <AdminPostsList condominiumId={id!} />
                             </TabsContent>
                             <TabsContent value="archivio">
                                 <ArchivioList condominiumId={id!} />
