@@ -26,6 +26,8 @@ import AdminTicketDetailPage from './pages/private/AdminTicketDetailPage'
 import AdminPostsListPage from './pages/private/AdminPostsListPage'
 import AdminPostCreatePage from './pages/private/AdminPostCreatePage'
 import AdminPostDetailPage from './pages/private/AdminPostDetailPage'
+import ResidentPostsPage from './pages/private/resident/ResidentDashboardPage'
+import ResidentPostDetailPage from './pages/private/resident/ResidentPostDetailPage'
 
 function App() {
 
@@ -72,8 +74,8 @@ function App() {
         <Route path="/resident/tickets/create" element={<ResidentCreateTicketPage />} />
         <Route path="/resident/ticket/:ticketId" element={<ResidentTicketDetailPage />} />
 
-        <Route path="/resident/tickets" element={<div className="p-4 text-center text-muted-foreground">Ticket - in costruzione</div>} />
-        <Route path="/resident/posts" element={<div className="p-4 text-center text-muted-foreground">Annunci - in costruzione</div>} />
+        <Route path="/resident/posts" element={<ResidentPostsPage />} />
+        <Route path="/resident/post/:postId" element={<ResidentPostDetailPage />} />
       </Route>
     </Routes >
   )

@@ -471,21 +471,6 @@ export default function AdminPostCreatePage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={goBack} disabled={loading}>
-            Annulla
-          </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creazione...
-              </>
-            ) : (
-              "Pubblica Post"
-            )}
-          </Button>
-        </div>
       </div>
 
       {error && (

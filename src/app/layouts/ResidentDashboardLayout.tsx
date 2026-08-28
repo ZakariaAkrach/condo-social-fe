@@ -106,7 +106,6 @@ function ResidentLayoutContent() {
             { id: "home", label: "Home", icon: Home },
             { id: "documents", label: "Documenti", icon: FileText },
             { id: "tickets", label: "Ticket", icon: Ticket },
-            { id: "posts", label: "Annunci", icon: Megaphone },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
