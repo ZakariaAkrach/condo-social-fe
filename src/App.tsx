@@ -32,6 +32,9 @@ import AdminPostsPage from './pages/private/AdminPostsPage'
 import AdminArchivePage from './pages/private/AdminArchivePage'
 import AdminResidentsPage from './pages/private/AdminResidentsPage'
 import AdminSettingsPage from './pages/private/AdminSettingsPage'
+import TermsPage from './pages/public/legal/TermsPage'
+import PrivacyPage from './pages/public/legal/PrivacyPage'
+import DpaPage from './pages/public/legal/DpaPage'
 
 function App() {
 
@@ -47,6 +50,10 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/deleted-condominium" element={<DeletedCondominium />} />
+
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/dpa" element={<DpaPage />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
