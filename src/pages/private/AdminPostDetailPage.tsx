@@ -17,6 +17,12 @@ import {
   MessageSquare,
   Calendar,
   User,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Inbox,
+  AlertCircle,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -50,17 +56,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   postAdminApi,
   type FetchDetailPostResponseDto,
@@ -69,10 +68,10 @@ import {
   type PollVotesAdminResponseDto,
 } from "@/app/api/postAdmin";
 
-const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  ACTIVE: { label: "Attivo", variant: "default" },
-  DRAFT: { label: "Bozza", variant: "secondary" },
-  DELETED: { label: "Eliminato", variant: "destructive" },
+const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: any }> = {
+  ACTIVE: { label: "Attivo", variant: "default", icon: CheckCircle },
+  DRAFT: { label: "Bozza", variant: "secondary", icon: EyeOff },
+  DELETED: { label: "Eliminato", variant: "destructive", icon: Trash2 },
 };
 
 export default function AdminPostDetailPage() {
@@ -215,11 +214,11 @@ export default function AdminPostDetailPage() {
       await fetchOptionVotes();
     }
     setRefreshing(false);
-    toast.info("Dettaglio aggiornato");
+    toast.success("Dettaglio aggiornato");
   };
 
   const goBack = () => {
-    navigate(`/admin/condomini/${condominiumId}`);
+    navigate(`/admin/condomini/${condominiumId}/posts`);
   };
 
   const handleStatusChange = async (newStatus: "ACTIVE" | "DRAFT") => {
@@ -262,15 +261,11 @@ export default function AdminPostDetailPage() {
 
   const StatusBadge = ({ status }: { status: string }) => {
     const config = STATUS_MAP[status] || STATUS_MAP.DRAFT;
-    const icons = {
-      ACTIVE: <CheckCircle className="h-3 w-3 mr-1" />,
-      DRAFT: <EyeOff className="h-3 w-3 mr-1" />,
-      DELETED: <Trash2 className="h-3 w-3 mr-1" />,
-    };
+    const Icon = config.icon;
 
     return (
-      <Badge variant={config.variant} className="flex items-center gap-0.5">
-        {icons[status as keyof typeof icons] || icons.DRAFT}
+      <Badge variant={config.variant} className="gap-1">
+        <Icon className="h-3 w-3" />
         {config.label}
       </Badge>
     );
@@ -278,23 +273,30 @@ export default function AdminPostDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col justify-center items-center h-96 gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground">Caricamento dettaglio post...</p>
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (error || !post) {
     return (
-      <div className="p-6 text-center max-w-md mx-auto">
-        <div className="mb-4 text-destructive">
-          <MessageSquare className="h-12 w-12 mx-auto" />
-        </div>
-        <h3 className="text-lg font-semibold mb-2">Impossibile caricare il post</h3>
-        <p className="text-muted-foreground mb-4">{error || "Post non trovato"}</p>
-        <Button variant="outline" onClick={goBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
+      <div className="text-center py-12">
+        <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+        <p className="text-muted-foreground font-medium mb-4">{error || "Post non trovato"}</p>
+        <Button variant="outline" onClick={goBack} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
           Torna indietro
         </Button>
       </div>
@@ -302,96 +304,105 @@ export default function AdminPostDetailPage() {
   }
 
   const isDeleted = post.status === "DELETED";
+  const totalVotes = optionVotes.reduce((sum, o) => sum + o.countVotes, 0);
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-5xl">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={goBack} className="shrink-0">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold truncate max-w-[300px]">{post.title}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                className="focus:outline-none"
-                onClick={() => setStatusDialogOpen(true)}
-                disabled={isDeleted}
-              >
-                <StatusBadge status={post.status} />
-              </button>
-              <span className="text-xs text-muted-foreground">
-                Creato il {format(new Date(post.createdAt), "dd MMM yyyy HH:mm", { locale: it })}
-              </span>
+      {/* Header */}
+      <div className="flex flex-col gap-4">
+
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-primary/10 p-2 mt-1">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold">{post.title}</h1>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <button
+                  className="focus:outline-none"
+                  onClick={() => setStatusDialogOpen(true)}
+                  disabled={isDeleted}
+                >
+                  <StatusBadge status={post.status} />
+                </button>
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {format(new Date(post.createdAt), "dd MMM yyyy HH:mm", { locale: it })}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-          </Button>
-
-          {!isDeleted && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() =>
-                    handleStatusChange(post.status === "ACTIVE" ? "DRAFT" : "ACTIVE")
-                  }
-                >
-                  {post.status === "ACTIVE" ? (
-                    <>
-                      <EyeOff className="h-4 w-4 mr-2" />
-                      Imposta Bozza
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Imposta Attivo
-                    </>
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-yellow-600"
-                  onClick={() => setDeleteDialog({ open: true, type: "program" })}
-                >
-                  <Clock className="h-4 w-4 mr-2" />
-                  Programma eliminazione
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={() => setDeleteDialog({ open: true, type: "delete" })}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Elimina definitivamente
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {isDeleted && (
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleStatusChange("DRAFT")}
-              disabled={actionLoading}
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="gap-2"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Ripristina
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Aggiorna
             </Button>
-          )}
+
+            {!isDeleted && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <MoreHorizontal className="h-4 w-4" />
+                    Azioni
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    onClick={() =>
+                      handleStatusChange(post.status === "ACTIVE" ? "DRAFT" : "ACTIVE")
+                    }
+                  >
+                    {post.status === "ACTIVE" ? (
+                      <>
+                        <EyeOff className="h-4 w-4 mr-2" />
+                        Imposta Bozza
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Imposta Attivo
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-yellow-600"
+                    onClick={() => setDeleteDialog({ open: true, type: "program" })}
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    Programma eliminazione
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => setDeleteDialog({ open: true, type: "delete" })}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina definitivamente
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {isDeleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleStatusChange("DRAFT")}
+                disabled={actionLoading}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Ripristina
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -405,325 +416,371 @@ export default function AdminPostDetailPage() {
         </Alert>
       )}
 
-      <Separator />
-
+      {/* Contenuto */}
       <Card>
         <CardContent className="pt-6">
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <p className="whitespace-pre-wrap">{post.body}</p>
-          </div>
+          <div 
+            className="prose prose-sm dark:prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: post.body }}
+          />
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Statistiche */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Documenti</span>
+              <div className="rounded-lg bg-primary/10 p-2">
+                <FileText className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Documenti</p>
+                <p className="text-xl font-bold">{post.documents}</p>
+              </div>
             </div>
-            <p className="text-2xl font-bold mt-1">{post.documents}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Sondaggio</span>
+              <div className="rounded-lg bg-primary/10 p-2">
+                <BarChart3 className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Sondaggio</p>
+                <p className="text-xl font-bold">{post.poll ? "Attivo" : "Nessuno"}</p>
+              </div>
             </div>
-            <p className="text-2xl font-bold mt-1">{post.poll ? "Sì" : "No"}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Creato da</span>
+              <div className="rounded-lg bg-primary/10 p-2">
+                <User className="h-4 w-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Creato da</p>
+                <p className="text-sm font-medium truncate">
+                  {post.createdByFirstName} {post.createdByLastName}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {post.createdByEmail}
+                </p>
+              </div>
             </div>
-            <p className="text-sm font-medium mt-1 truncate">
-              {post.createdByFirstName} {post.createdByLastName}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {post.createdByEmail}
-            </p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Aggiornato</span>
+              <div className="rounded-lg bg-primary/10 p-2">
+                <Calendar className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Aggiornato</p>
+                <p className="text-sm font-medium">
+                  {format(new Date(post.updatedAt), "dd MMM yyyy", { locale: it })}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(post.updatedAt), "HH:mm", { locale: it })}
+                </p>
+              </div>
             </div>
-            <p className="text-sm font-medium mt-1">
-              {format(new Date(post.updatedAt), "dd MMM yyyy", { locale: it })}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {format(new Date(post.updatedAt), "HH:mm", { locale: it })}
-            </p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="documents" className="w-full">
-        <TabsList>
-          <TabsTrigger value="documents" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Documenti
-            <Badge variant="secondary" className="ml-1 text-xs">
-              {post.documents}
-            </Badge>
-          </TabsTrigger>
-          {post.poll && (
-            <>
-              <TabsTrigger value="poll" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Sondaggio
-              </TabsTrigger>
-              <TabsTrigger value="votes" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Voti
+      {/* Tabs */}
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <Tabs defaultValue="documents" className="w-full">
+            <TabsList className="w-full sm:w-auto flex-wrap h-auto gap-1">
+              <TabsTrigger value="documents" className="flex items-center gap-2 flex-1 sm:flex-none justify-center">
+                <FileText className="h-4 w-4" />
+                Documenti
                 <Badge variant="secondary" className="ml-1 text-xs">
-                  {pollVotesTotal}
+                  {post.documents}
                 </Badge>
               </TabsTrigger>
-            </>
-          )}
-        </TabsList>
-
-        <TabsContent value="documents" className="space-y-4 pt-4">
-          {documentsLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : documents.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">Nessun documento associato</p>
-              <p className="text-sm">Questo post non ha documenti allegati.</p>
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead className="hidden md:table-cell">Tipo</TableHead>
-                    <TableHead className="hidden lg:table-cell">Versione</TableHead>
-                    <TableHead className="hidden lg:table-cell">Stato</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.map((doc) => (
-                    <TableRow key={doc.documentId}>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium truncate max-w-[200px]">
-                            {doc.originalName}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline">{doc.contentType}</Badge>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        v{doc.currentVersion}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <StatusBadge status={doc.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            navigate(
-                              `/admin/condomini/${condominiumId}/documenti/${doc.documentId}`
-                            );
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {documentsTotal > 10 && (
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        onClick={() =>
-                          setDocumentsPage(Math.max(0, documentsPage - 1))
-                        }
-                        className={documentsPage === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-                    <PaginationItem>
-                      <PaginationLink isActive>
-                        {documentsPage + 1}
-                      </PaginationLink>
-                    </PaginationItem>
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() =>
-                          setDocumentsPage(documentsPage + 1)
-                        }
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
+              {post.poll && (
+                <>
+                  <TabsTrigger value="poll" className="flex items-center gap-2 flex-1 sm:flex-none justify-center">
+                    <BarChart3 className="h-4 w-4" />
+                    Sondaggio
+                  </TabsTrigger>
+                  <TabsTrigger value="votes" className="flex items-center gap-2 flex-1 sm:flex-none justify-center">
+                    <Users className="h-4 w-4" />
+                    Voti
+                    <Badge variant="secondary" className="ml-1 text-xs">
+                      {pollVotesTotal}
+                    </Badge>
+                  </TabsTrigger>
+                </>
               )}
-            </>
-          )}
-        </TabsContent>
+            </TabsList>
 
-        {post.poll && (
-          <TabsContent value="poll" className="space-y-4 pt-4">
-            {optionVotesLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : optionVotes.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Nessun voto registrato</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <h3 className="font-medium text-lg">Risultati del sondaggio</h3>
-                <div className="space-y-3">
-                  {optionVotes.map((option) => {
-                    const total = optionVotes.reduce((sum, o) => sum + o.countVotes, 0);
-                    const percentage = total > 0 ? (option.countVotes / total) * 100 : 0;
-
-                    return (
-                      <div key={option.optionId} className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span>{option.optionText}</span>
-                          <span className="font-medium">
-                            {option.countVotes} voti ({Math.round(percentage)}%)
-                          </span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary rounded-full transition-all"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+            <TabsContent value="documents" className="space-y-4 pt-4">
+              {documentsLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
                 </div>
-                <div className="text-sm text-muted-foreground mt-4">
-                  Totale voti: {optionVotes.reduce((sum, o) => sum + o.countVotes, 0)}
+              ) : documents.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">Nessun documento associato</p>
+                  <p className="text-sm">Questo post non ha documenti allegati.</p>
                 </div>
-              </div>
-            )}
-          </TabsContent>
-        )}
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nome</TableHead>
+                          <TableHead className="hidden md:table-cell">Tipo</TableHead>
+                          <TableHead className="hidden lg:table-cell">Versione</TableHead>
+                          <TableHead className="hidden lg:table-cell">Stato</TableHead>
+                          <TableHead className="text-right">Azioni</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {documents.map((doc) => (
+                          <TableRow key={doc.documentId} className="hover:bg-muted/50">
+                            <TableCell>
+                              <p className="font-medium truncate max-w-[200px]">
+                                {doc.originalName}
+                              </p>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell">
+                              <Badge variant="outline">{doc.contentType}</Badge>
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              v{doc.currentVersion}
+                            </TableCell>
+                            <TableCell className="hidden lg:table-cell">
+                              <StatusBadge status={doc.status} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                  navigate(
+                                    `/admin/condomini/${condominiumId}/documenti/${doc.documentId}`
+                                  );
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
 
-        {post.poll && (
-          <TabsContent value="votes" className="space-y-4 pt-4">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <Input
-                placeholder="Cerca per nome..."
-                value={voteFilters.firstName}
-                onChange={(e) =>
-                  setVoteFilters((prev) => ({ ...prev, firstName: e.target.value, page: 0 }))
-                }
-                className="flex-1"
-              />
-              <Input
-                placeholder="Cerca per email..."
-                value={voteFilters.email}
-                onChange={(e) =>
-                  setVoteFilters((prev) => ({ ...prev, email: e.target.value, page: 0 }))
-                }
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setVoteFilters((prev) => ({ ...prev, page: 0 }));
-                  fetchPollVotes();
-                }}
-              >
-                Filtra
-              </Button>
-            </div>
+                  {documentsTotal > 10 && (
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDocumentsPage(Math.max(0, documentsPage - 1))}
+                        disabled={documentsPage === 0}
+                        className="gap-1"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        <span className="hidden sm:inline">Precedente</span>
+                      </Button>
+                      <span className="text-sm px-2">
+                        Pagina {documentsPage + 1}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDocumentsPage(documentsPage + 1)}
+                        className="gap-1"
+                      >
+                        <span className="hidden sm:inline">Successiva</span>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </TabsContent>
 
-            {pollVotesLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : pollVotes.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Nessun voto trovato</p>
-              </div>
-            ) : (
-              <>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Opzione</TableHead>
-                      <TableHead>Nome</TableHead>
-                      <TableHead className="hidden md:table-cell">Email</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pollVotes.map((vote, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Badge variant="outline">{vote.optionText}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {vote.firstName} {vote.lastName}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {vote.email}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+            {post.poll && (
+              <TabsContent value="poll" className="space-y-4 pt-4">
+                {optionVotesLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : optionVotes.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">Nessun voto registrato</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-lg">Risultati del sondaggio</h3>
+                    <div className="space-y-4">
+                      {optionVotes.map((option) => {
+                        const percentage = totalVotes > 0 ? (option.countVotes / totalVotes) * 100 : 0;
 
-                {pollVotesTotal > 10 && (
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() =>
-                            setPollVotesPage(Math.max(0, pollVotesPage - 1))
-                          }
-                          className={pollVotesPage === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                        />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink isActive>
-                          {pollVotesPage + 1}
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() => setPollVotesPage(pollVotesPage + 1)}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
+                        return (
+                          <div key={option.optionId} className="space-y-2">
+                            <div className="flex justify-between items-center text-sm flex-wrap gap-1">
+                              <span className="font-medium">{option.optionText}</span>
+                              <Badge variant="secondary">
+                                {option.countVotes} voti ({Math.round(percentage)}%)
+                              </Badge>
+                            </div>
+                            <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full transition-all duration-500"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-4 flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      Totale voti: <span className="font-semibold">{totalVotes}</span>
+                    </div>
+                  </div>
                 )}
-              </>
+              </TabsContent>
             )}
-          </TabsContent>
-        )}
-      </Tabs>
 
+            {post.poll && (
+              <TabsContent value="votes" className="space-y-4 pt-4">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      placeholder="Cerca per nome..."
+                      value={voteFilters.firstName}
+                      onChange={(e) =>
+                        setVoteFilters((prev) => ({ ...prev, firstName: e.target.value, page: 0 }))
+                      }
+                      className="pl-3"
+                    />
+                  </div>
+                  <div className="relative flex-1">
+                    <Input
+                      placeholder="Cerca per email..."
+                      value={voteFilters.email}
+                      onChange={(e) =>
+                        setVoteFilters((prev) => ({ ...prev, email: e.target.value, page: 0 }))
+                      }
+                      className="pl-3"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setVoteFilters((prev) => ({ ...prev, page: 0 }));
+                      fetchPollVotes();
+                    }}
+                    className="gap-2"
+                  >
+                    <Search className="h-4 w-4" />
+                    Filtra
+                  </Button>
+                </div>
+
+                {pollVotesLoading ? (
+                  <div className="space-y-2">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : pollVotes.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">Nessun voto trovato</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Opzione</TableHead>
+                            <TableHead>Nome</TableHead>
+                            <TableHead className="hidden md:table-cell">Email</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pollVotes.map((vote, index) => (
+                            <TableRow key={index} className="hover:bg-muted/50">
+                              <TableCell>
+                                <Badge variant="outline">{vote.optionText}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarFallback className="text-xs">
+                                      {vote.firstName?.[0]?.toUpperCase()}
+                                      {vote.lastName?.[0]?.toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span>{vote.firstName} {vote.lastName}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell">
+                                {vote.email}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {pollVotesTotal > 10 && (
+                      <div className="flex items-center justify-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPollVotesPage(Math.max(0, pollVotesPage - 1))}
+                          disabled={pollVotesPage === 0}
+                          className="gap-1"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          <span className="hidden sm:inline">Precedente</span>
+                        </Button>
+                        <span className="text-sm px-2">
+                          Pagina {pollVotesPage + 1}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPollVotesPage(pollVotesPage + 1)}
+                          className="gap-1"
+                        >
+                          <span className="hidden sm:inline">Successiva</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </TabsContent>
+            )}
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {/* Dialog Cambio stato */}
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cambia stato del post</DialogTitle>
             <DialogDescription>
@@ -734,20 +791,26 @@ export default function AdminPostDetailPage() {
             <RadioGroup
               value={tempStatus}
               onValueChange={(val) => setTempStatus(val as "ACTIVE" | "DRAFT")}
-              className="space-y-2"
+              className="space-y-3"
             >
-              <div className="flex items-start space-x-2">
+              <div className="flex items-start space-x-3 p-3 rounded-lg border">
                 <RadioGroupItem value="DRAFT" id="status-draft" />
                 <div>
-                  <Label htmlFor="status-draft" className="font-medium">Bozza</Label>
-                  <p className="text-sm text-muted-foreground">Visibile solo agli amministratori.</p>
+                  <Label htmlFor="status-draft" className="font-medium flex items-center gap-2">
+                    <EyeOff className="h-4 w-4" />
+                    Bozza
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-0.5">Visibile solo agli amministratori.</p>
                 </div>
               </div>
-              <div className="flex items-start space-x-2">
+              <div className="flex items-start space-x-3 p-3 rounded-lg border">
                 <RadioGroupItem value="ACTIVE" id="status-active" />
                 <div>
-                  <Label htmlFor="status-active" className="font-medium">Attivo</Label>
-                  <p className="text-sm text-muted-foreground">Visibile a tutti i residenti.</p>
+                  <Label htmlFor="status-active" className="font-medium flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Attivo
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-0.5">Visibile a tutti i residenti.</p>
                 </div>
               </div>
             </RadioGroup>
@@ -759,18 +822,21 @@ export default function AdminPostDetailPage() {
             <Button
               onClick={() => handleStatusChange(tempStatus)}
               disabled={actionLoading || tempStatus === post.status}
+              className="gap-2"
             >
-              {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Aggiorna"}
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+              Aggiorna
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Dialog Eliminazione */}
       <Dialog
         open={deleteDialog.open}
         onOpenChange={(open) => !actionLoading && setDeleteDialog({ open, type: "program" })}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {deleteDialog.type === "program" ? "Programma eliminazione" : "Elimina post"}
@@ -779,15 +845,17 @@ export default function AdminPostDetailPage() {
               {deleteDialog.type === "program" ? (
                 <>
                   Il post verrà spostato nel cestino e eliminato definitivamente dopo 7 giorni.
-                  <span className="block mt-2 text-yellow-600">
-                    ⚠️ Puoi ripristinarlo in qualsiasi momento prima della scadenza.
+                  <span className="block mt-2 text-yellow-600 flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    Puoi ripristinarlo in qualsiasi momento prima della scadenza.
                   </span>
                 </>
               ) : (
                 <>
                   Questa azione è irreversibile e eliminerà definitivamente il post.
-                  <span className="block mt-2 text-destructive">
-                    ⚠️ Tutti i dati associati verranno persi.
+                  <span className="block mt-2 text-destructive flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Tutti i dati associati verranno persi.
                   </span>
                 </>
               )}
@@ -805,14 +873,16 @@ export default function AdminPostDetailPage() {
               variant={deleteDialog.type === "program" ? "default" : "destructive"}
               onClick={() => handleDelete(deleteDialog.type)}
               disabled={actionLoading}
+              className="gap-2"
             >
               {actionLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : deleteDialog.type === "program" ? (
-                "Programma eliminazione"
+                <Clock className="h-4 w-4" />
               ) : (
-                "Elimina definitivamente"
+                <Trash2 className="h-4 w-4" />
               )}
+              {deleteDialog.type === "program" ? "Programma" : "Elimina"}
             </Button>
           </DialogFooter>
         </DialogContent>

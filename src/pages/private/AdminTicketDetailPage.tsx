@@ -1,4 +1,3 @@
-// pages/private/AdminTicketDetailPage.tsx
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
@@ -16,7 +15,6 @@ import {
   RefreshCw,
   MessageSquare,
   User,
-  Mail,
   Clock,
   MoreHorizontal,
   Upload,
@@ -25,11 +23,21 @@ import {
   AlertCircle,
   CheckCircle,
   Download,
+  UserPlus,
+  Send,
+  Lock,
+  Globe,
+  Paperclip,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ticketAdminApi } from "@/app/api/ticketAdmin";
+import { condominiumMemberApi } from "@/app/api/condominiumMember";
+import type { FetchMembersResponseDto } from "@/app/api/condominiumMember";
 import { uploadFileToStorage } from "@/auth/uploadStorage";
 import { downloadFileFromStorage } from "@/auth/downloadFileFromStorage";
+import { useAuth } from "@/auth/AuthProvider";
 import {
   Table,
   TableBody,
@@ -63,6 +71,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const CATEGORY_LABELS: Record<string, string> = {
   MAINTENANCE: "Manutenzione",
@@ -77,19 +88,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const STATUS_CONFIG: Record<
   string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: any }
 > = {
-  OPEN: { label: "Aperto", variant: "default" },
-  IN_PROGRESS: { label: "In corso", variant: "secondary" },
-  WAITING_USER: { label: "In attesa utente", variant: "outline" },
-  WAITING_ADMIN: { label: "In attesa admin", variant: "outline" },
-  CLOSED: { label: "Chiuso", variant: "destructive" },
+  OPEN: { label: "Aperto", variant: "default", icon: AlertCircle },
+  IN_PROGRESS: { label: "In corso", variant: "secondary", icon: Clock },
+  CLOSED: { label: "Chiuso", variant: "destructive", icon: CheckCircle },
 };
 
-const PRIORITY_LABELS: Record<string, string> = {
-  LOW: "Bassa",
-  MEDIUM: "Media",
-  HIGH: "Alta",
+const PRIORITY_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  LOW: { label: "Bassa", variant: "outline" },
+  MEDIUM: { label: "Media", variant: "secondary" },
+  HIGH: { label: "Alta", variant: "destructive" },
 };
 
 const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([key, { label }]) => ({
@@ -103,6 +112,7 @@ export default function AdminTicketDetailPage() {
     ticketId: string;
   }>();
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
 
   const [ticket, setTicket] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -127,9 +137,8 @@ export default function AdminTicketDetailPage() {
     open: boolean;
     status: string;
   }>({ open: false, status: "" });
-  const [assignDialog, setAssignDialog] = useState<{ open: boolean; email: string }>({
+  const [assignDialog, setAssignDialog] = useState<{ open: boolean }>({
     open: false,
-    email: "",
   });
   const [closeTicketDialog, setCloseTicketDialog] = useState<{ open: boolean }>({
     open: false,
@@ -146,6 +155,11 @@ export default function AdminTicketDetailPage() {
     "idle" | "getting-url" | "uploading" | "confirming"
   >("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Stati per membri
+  const [members, setMembers] = useState<FetchMembersResponseDto[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<string>("");
 
   // --- Fetch functions ---
   const fetchDetail = useCallback(async () => {
@@ -232,6 +246,27 @@ export default function AdminTicketDetailPage() {
     [condominiumId, ticketId]
   );
 
+  // Fetch members
+  const fetchMembers = useCallback(async () => {
+    setMembersLoading(true);
+    try {
+      const response = await condominiumMemberApi.fetchMembers(
+        {
+          role: "CONDO_SUB_ADMIN",
+          page: 0,
+          size: 100,
+        },
+        condominiumId
+      );
+      setMembers(response.data || []);
+    } catch (err: any) {
+      console.error("Errore fetch members:", err);
+      toast.error("Errore nel caricamento dei membri");
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [condominiumId]);
+
   useEffect(() => {
     if (condominiumId && ticketId) {
       fetchDetail();
@@ -250,7 +285,7 @@ export default function AdminTicketDetailPage() {
       fetchAttachments(attPage),
     ]);
     setRefreshing(false);
-    toast.info("Aggiornato");
+    toast.success("Dati aggiornati");
   };
 
   // --- Action handlers ---
@@ -274,14 +309,34 @@ export default function AdminTicketDetailPage() {
   };
 
   const handleAssign = async () => {
-    if (!ticketId || !assignDialog.email) return;
+    if (!ticketId || !selectedMember) return;
     setIsSubmitting(true);
     try {
+      let emailToAssign = "";
+      
+      // Se è "me", usa l'email dell'utente corrente
+      if (selectedMember === "me") {
+        emailToAssign = user?.email || profile?.email || "";
+        if (!emailToAssign) {
+          toast.error("Email utente non disponibile");
+          return;
+        }
+      } else {
+        // Altrimenti cerca tra i membri
+        const selectedMemberData = members.find(m => m.memberId === selectedMember);
+        if (!selectedMemberData) {
+          toast.error("Seleziona un membro valido");
+          return;
+        }
+        emailToAssign = selectedMemberData.email;
+      }
+      
       await ticketAdminApi.assignTicket(condominiumId!, ticketId, {
-        email: assignDialog.email,
+        email: emailToAssign,
       });
       toast.success("Ticket assegnato");
-      setAssignDialog({ open: false, email: "" });
+      setAssignDialog({ open: false });
+      setSelectedMember("");
       fetchDetail();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Errore");
@@ -391,7 +446,6 @@ export default function AdminTicketDetailPage() {
     }
   };
 
-  // ⭐ Download attachment – copiato da ResidentDocumentDetailPage
   const handleDownload = async (attachmentId: string, fileName: string) => {
     try {
       const response = await ticketAdminApi.download(
@@ -406,24 +460,15 @@ export default function AdminTicketDetailPage() {
         return;
       }
 
-      // Scarica il file come blob usando l'utility
       const blob = await downloadFileFromStorage(downloadUrl);
-
-      // Crea un URL per il blob
       const blobUrl = URL.createObjectURL(blob);
-
-      // Crea un link fittizio e avvia il download
       const link = window.document.createElement("a");
       link.href = blobUrl;
       link.download = response.data.fileName || fileName;
-
       window.document.body.appendChild(link);
       link.click();
       link.remove();
-
-      // Rilascia l'URL del blob
       URL.revokeObjectURL(blobUrl);
-
       toast.success("Download completato");
     } catch (err: any) {
       console.error("Errore durante il download", err);
@@ -456,49 +501,89 @@ export default function AdminTicketDetailPage() {
     loading: boolean,
     page: number,
     totalPages: number,
-    onPageChange: (p: number) => void
+    onPageChange: (p: number) => void,
+    isInternal: boolean
   ) => {
     if (loading) {
-      return <Loader2 className="h-6 w-6 animate-spin mx-auto" />;
+      return (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      );
     }
     if (messages.length === 0) {
-      return <p className="text-center text-muted-foreground text-sm">Nessun messaggio</p>;
+      return (
+        <div className="text-center py-8">
+          <MessageSquare className="h-12 w-12 text-muted-foreground/50 mx-auto mb-2" />
+          <p className="text-muted-foreground text-sm">Nessun messaggio</p>
+        </div>
+      );
     }
     return (
       <>
-        <div className="space-y-4 max-h-96 overflow-y-auto p-1">
-          {messages.map((msg) => (
-            <div key={msg.id} className="flex flex-col gap-1 border-b pb-2">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium">
-                  {msg.firstName} {msg.lastName}
-                </span>
-                <span className="text-muted-foreground text-xs">
-                  {formatDate(msg.createdAt)}
-                </span>
+        <ScrollArea className="h-[400px] pr-4">
+          <div className="space-y-4">
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex gap-3 p-3 rounded-lg ${
+                  isInternal ? "bg-amber-50 dark:bg-amber-950/20" : "bg-muted/50"
+                }`}
+              >
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarFallback className="text-xs">
+                    {msg.firstName?.[0]?.toUpperCase()}
+                    {msg.lastName?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm">
+                      {msg.firstName} {msg.lastName}
+                    </span>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {formatDate(msg.createdAt)}
+                    </span>
+                    {isInternal && (
+                      <Badge variant="outline" className="text-xs">
+                        <Lock className="h-3 w-3 mr-1" />
+                        Interno
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm mt-1 whitespace-pre-wrap">{msg.message}</p>
+                </div>
               </div>
-              <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </ScrollArea>
         {totalPages > 1 && (
-          <div className="flex justify-center gap-2 mt-2">
+          <div className="flex items-center justify-center gap-2 mt-4">
             <Button
               variant="outline"
               size="sm"
               disabled={page === 0}
               onClick={() => onPageChange(page - 1)}
+              className="gap-1"
             >
-              Precedente
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Precedente</span>
             </Button>
-            <span className="text-sm">Pagina {page + 1} di {totalPages}</span>
+            <span className="text-sm px-2">
+              Pagina {page + 1} di {totalPages}
+            </span>
             <Button
               variant="outline"
               size="sm"
               disabled={page >= totalPages - 1}
               onClick={() => onPageChange(page + 1)}
+              className="gap-1"
             >
-              Successiva
+              <span className="hidden sm:inline">Successiva</span>
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         )}
@@ -506,10 +591,27 @@ export default function AdminTicketDetailPage() {
     );
   };
 
+  // Filtra i membri per escludere l'utente corrente
+  const filteredMembers = members.filter(member => 
+    member.email?.toLowerCase() !== user?.email?.toLowerCase() && 
+    member.email?.toLowerCase() !== profile?.email?.toLowerCase()
+  );
+
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -518,8 +620,9 @@ export default function AdminTicketDetailPage() {
     return (
       <div className="text-center py-12">
         <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground" />
-        <p className="mt-2 text-muted-foreground">Ticket non trovato</p>
-        <Button variant="outline" onClick={() => navigate(-1)} className="mt-4">
+        <p className="mt-2 text-muted-foreground font-medium">Ticket non trovato</p>
+        <Button variant="outline" onClick={() => navigate(-1)} className="mt-4 gap-2">
+          <ArrowLeft className="h-4 w-4" />
           Torna indietro
         </Button>
       </div>
@@ -527,112 +630,135 @@ export default function AdminTicketDetailPage() {
   }
 
   const isClosed = ticket.status === "CLOSED";
+  const StatusIcon = STATUS_CONFIG[ticket.status]?.icon || AlertCircle;
+  const PriorityBadge = PRIORITY_CONFIG[ticket.priority];
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{ticket.title}</h1>
-            <p className="text-sm text-muted-foreground">
-              #{ticket.id?.slice(0, 8)} • Creato il {formatDate(ticket.createdAt)}
-            </p>
+      <div className="flex flex-col gap-4">
+
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-primary/10 p-2 mt-1">
+              <StatusIcon className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold">{ticket.title}</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                #{ticket.id?.slice(0, 8)} • Creato il {formatDate(ticket.createdAt)}
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-          </Button>
-          {!isClosed && (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setCloseTicketDialog({ open: true })}
-              className="gap-1"
-            >
-              <CheckCircle className="h-4 w-4" />
-              Chiudi ticket
+          
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="gap-2">
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Aggiorna
             </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <MoreHorizontal className="h-4 w-4 mr-1" /> Azioni
+            {!isClosed && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setCloseTicketDialog({ open: true })}
+                className="gap-2"
+              >
+                <CheckCircle className="h-4 w-4" />
+                Chiudi ticket
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() =>
-                  setChangeStatusDialog({ open: true, status: ticket.status })
-                }
-              >
-                <Clock className="h-4 w-4 mr-2" /> Cambia stato
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setAssignDialog({ open: true, email: "" })}
-              >
-                <User className="h-4 w-4 mr-2" /> Assegna
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <MoreHorizontal className="h-4 w-4" />
+                  Azioni
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  onClick={() =>
+                    setChangeStatusDialog({ open: true, status: ticket.status })
+                  }
+                >
+                  <Clock className="h-4 w-4 mr-2" /> Cambia stato
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    setAssignDialog({ open: true });
+                    setSelectedMember("");
+                    await fetchMembers();
+                  }}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" /> Assegna
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
       {/* Dettagli ticket */}
       <Card>
-        <CardHeader>
-          <CardTitle>Dettagli ticket</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Dettagli ticket</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label className="text-muted-foreground">Stato</Label>
-            <Badge variant={STATUS_CONFIG[ticket.status]?.variant || "outline"}>
-              {STATUS_CONFIG[ticket.status]?.label || ticket.status}
-            </Badge>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground">Priorità</Label>
-            <Badge
-              variant={
-                ticket.priority === "HIGH"
-                  ? "destructive"
-                  : ticket.priority === "MEDIUM"
-                  ? "default"
-                  : "outline"
-              }
-            >
-              {PRIORITY_LABELS[ticket.priority] || ticket.priority}
-            </Badge>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground">Categoria</Label>
-            <div>{CATEGORY_LABELS[ticket.category] || ticket.category || "—"}</div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground">Creato da</Label>
-            <div className="flex items-center gap-1">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              {ticket.createdByEmail}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-muted-foreground">Assegnato a</Label>
-            <div>{ticket.assignedTo || "Non assegnato"}</div>
-          </div>
-          {ticket.closedAt && (
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1">
-              <Label className="text-muted-foreground">Chiuso il</Label>
-              <div>{formatDate(ticket.closedAt)}</div>
+              <Label className="text-xs text-muted-foreground">Stato</Label>
+              <div>
+                <Badge variant={STATUS_CONFIG[ticket.status]?.variant || "outline"} className="gap-1">
+                  <StatusIcon className="h-3 w-3" />
+                  {STATUS_CONFIG[ticket.status]?.label || ticket.status}
+                </Badge>
+              </div>
             </div>
-          )}
-          <div className="col-span-1 md:col-span-2 space-y-1">
-            <Label className="text-muted-foreground">Descrizione</Label>
-            <div className="p-2 bg-muted/50 rounded-md text-sm">
-              {ticket.description || "Nessuna descrizione"}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Priorità</Label>
+              <div>
+                <Badge variant={PriorityBadge?.variant || "outline"}>
+                  {PriorityBadge?.label || ticket.priority}
+                </Badge>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Categoria</Label>
+              <div className="text-sm font-medium">
+                {CATEGORY_LABELS[ticket.category] || ticket.category || "—"}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Creato da</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <Avatar className="h-6 w-6">
+                  <AvatarFallback className="text-xs">
+                    {ticket.createdByEmail?.[0]?.toUpperCase() || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate">{ticket.createdByEmail}</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Assegnato a</Label>
+              <div className="flex items-center gap-2 text-sm">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span>{ticket.assignedTo || "Non assegnato"}</span>
+              </div>
+            </div>
+            {ticket.closedAt && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Chiuso il</Label>
+                <div className="text-sm flex items-center gap-1">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  {formatDate(ticket.closedAt)}
+                </div>
+              </div>
+            )}
+            <div className="col-span-1 sm:col-span-2 lg:col-span-3 space-y-1">
+              <Label className="text-xs text-muted-foreground">Descrizione</Label>
+              <div className="p-3 bg-muted/50 rounded-lg text-sm whitespace-pre-wrap">
+                {ticket.description || "Nessuna descrizione"}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -640,72 +766,95 @@ export default function AdminTicketDetailPage() {
 
       {/* Messaggi */}
       <Card>
-        <CardHeader>
-          <CardTitle>Messaggi</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg">Messaggi</CardTitle>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="public" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="public">Pubblici</TabsTrigger>
-              <TabsTrigger value="internal">Interni (Privati)</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="public" className="gap-2">
+                <Globe className="h-4 w-4" />
+                Pubblici
+              </TabsTrigger>
+              <TabsTrigger value="internal" className="gap-2">
+                <Lock className="h-4 w-4" />
+                Interni
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="public" className="space-y-4">
+            
+            <TabsContent value="public" className="space-y-4 mt-0">
               {renderMessageList(
                 publicMessages,
                 loadingPublic,
                 publicPage,
                 publicTotalPages,
-                fetchPublicMessages
+                fetchPublicMessages,
+                false
               )}
               <Separator />
               <div className="space-y-2">
+                <Label className="text-sm">Nuovo messaggio pubblico</Label>
                 <Textarea
-                  placeholder="Scrivi un messaggio pubblico (visibile a tutti)..."
+                  placeholder="Scrivi un messaggio visibile a tutti..."
                   value={newPublicMessage}
                   onChange={(e) => setNewPublicMessage(e.target.value)}
                   rows={3}
+                  className="resize-none"
                 />
-                <Button
-                  onClick={handleSendPublicMessage}
-                  disabled={isSubmitting || !newPublicMessage.trim()}
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  ) : (
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                  )}
-                  Invia pubblico
-                </Button>
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleSendPublicMessage}
+                    disabled={isSubmitting || !newPublicMessage.trim()}
+                    className="gap-2"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    Invia
+                  </Button>
+                </div>
               </div>
             </TabsContent>
-            <TabsContent value="internal" className="space-y-4">
+            
+            <TabsContent value="internal" className="space-y-4 mt-0">
               {renderMessageList(
                 internalMessages,
                 loadingInternal,
                 internalPage,
                 internalTotalPages,
-                fetchInternalMessages
+                fetchInternalMessages,
+                true
               )}
               <Separator />
               <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-1">
+                  <Lock className="h-3 w-3" />
+                  Nuovo messaggio interno
+                </Label>
                 <Textarea
-                  placeholder="Scrivi un messaggio interno (visibile solo agli admin)..."
+                  placeholder="Scrivi un messaggio visibile solo agli admin..."
                   value={newInternalMessage}
                   onChange={(e) => setNewInternalMessage(e.target.value)}
                   rows={3}
+                  className="resize-none"
                 />
-                <Button
-                  onClick={handleSendInternalMessage}
-                  disabled={isSubmitting || !newInternalMessage.trim()}
-                  variant="secondary"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                  ) : (
-                    <MessageSquare className="h-4 w-4 mr-1" />
-                  )}
-                  Invia interno
-                </Button>
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleSendInternalMessage}
+                    disabled={isSubmitting || !newInternalMessage.trim()}
+                    variant="secondary"
+                    className="gap-2"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    Invia
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -714,72 +863,100 @@ export default function AdminTicketDetailPage() {
 
       {/* Allegati */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Allegati</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-lg">Allegati</CardTitle>
           <Button
             size="sm"
             onClick={() => setUploadDialogOpen(true)}
-            className="gap-1"
+            className="gap-2"
           >
-            <Upload className="h-4 w-4" /> Carica
+            <Paperclip className="h-4 w-4" />
+            Carica
           </Button>
         </CardHeader>
         <CardContent>
           {loadingAttachments ? (
-            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
           ) : attachments.length === 0 ? (
-            <p className="text-center text-muted-foreground text-sm">
-              Nessun allegato
-            </p>
+            <div className="text-center py-8">
+              <File className="h-12 w-12 text-muted-foreground/50 mx-auto mb-2" />
+              <p className="text-muted-foreground text-sm">Nessun allegato</p>
+            </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Dimensione</TableHead>
-                    <TableHead>Caricato da</TableHead>
-                    <TableHead>Visibilità</TableHead>
-                    <TableHead className="text-right">Azioni</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {attachments.map((att) => (
-                    <TableRow key={att.id}>
-                      <TableCell className="flex items-center gap-2">
-                        <File className="h-4 w-4" />
-                        {att.originalName}
-                      </TableCell>
-                      <TableCell>{formatSize(att.size)}</TableCell>
-                      <TableCell>
-                        {att.firstName} {att.lastName}
-                      </TableCell>
-                      <TableCell>{att.visibility}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7"
-                          onClick={() => handleDownload(att.id, att.originalName)}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead className="hidden sm:table-cell">Dimensione</TableHead>
+                      <TableHead className="hidden md:table-cell">Caricato da</TableHead>
+                      <TableHead className="hidden lg:table-cell">Visibilità</TableHead>
+                      <TableHead className="text-right">Download</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {attachments.map((att) => (
+                      <TableRow key={att.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <File className="h-4 w-4 text-primary shrink-0" />
+                            <span className="truncate max-w-[150px] sm:max-w-[200px]">
+                              {att.originalName}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {formatSize(att.size)}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className="text-xs">
+                                {att.firstName?.[0]?.toUpperCase()}
+                                {att.lastName?.[0]?.toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="text-sm">
+                              {att.firstName} {att.lastName}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <Badge variant="outline">{att.visibility}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleDownload(att.id, att.originalName)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
               {attTotalPages > 1 && (
-                <div className="flex justify-center gap-2 mt-4">
+                <div className="flex items-center justify-center gap-2 mt-4">
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={attPage === 0}
                     onClick={() => fetchAttachments(attPage - 1)}
+                    className="gap-1"
                   >
-                    Precedente
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="hidden sm:inline">Precedente</span>
                   </Button>
-                  <span className="text-sm">
+                  <span className="text-sm px-2">
                     Pagina {attPage + 1} di {attTotalPages}
                   </span>
                   <Button
@@ -787,8 +964,10 @@ export default function AdminTicketDetailPage() {
                     size="sm"
                     disabled={attPage >= attTotalPages - 1}
                     onClick={() => fetchAttachments(attPage + 1)}
+                    className="gap-1"
                   >
-                    Successiva
+                    <span className="hidden sm:inline">Successiva</span>
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               )}
@@ -835,8 +1014,13 @@ export default function AdminTicketDetailPage() {
             >
               Annulla
             </Button>
-            <Button onClick={handleChangeStatus} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Aggiorna"}
+            <Button onClick={handleChangeStatus} disabled={isSubmitting} className="gap-2">
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4" />
+              )}
+              Aggiorna
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -845,33 +1029,114 @@ export default function AdminTicketDetailPage() {
       {/* Dialog Assegnazione */}
       <Dialog
         open={assignDialog.open}
-        onOpenChange={(open) =>
-          !open && setAssignDialog({ open: false, email: "" })
-        }
+        onOpenChange={(open) => !open && setAssignDialog({ open: false })}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Assegna ticket</DialogTitle>
             <DialogDescription>
-              Inserisci l'email dell'amministratore.
+              Seleziona un amministratore a cui assegnare il ticket.
             </DialogDescription>
           </DialogHeader>
-          <Input
-            placeholder="Email"
-            value={assignDialog.email}
-            onChange={(e) =>
-              setAssignDialog((prev) => ({ ...prev, email: e.target.value }))
-            }
-          />
+          
+          <div className="py-2 space-y-4">
+            {/* Assegna a me */}
+            <button
+              onClick={() => setSelectedMember("me")}
+              className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                selectedMember === "me"
+                  ? "border-primary bg-primary/5"
+                  : "border-border hover:bg-muted/50"
+              }`}
+            >
+              <Avatar>
+                <AvatarFallback className="bg-primary/10 text-primary">
+                  {profile?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || "U"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 text-left">
+                <p className="font-medium flex items-center gap-2">
+                  Assegna a me
+                  <Badge variant="outline" className="text-xs">Tu</Badge>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {profile?.email || user?.email}
+                </p>
+              </div>
+              {selectedMember === "me" && (
+                <CheckCircle className="h-5 w-5 text-primary" />
+              )}
+            </button>
+
+            <Separator />
+
+            {/* Lista membri */}
+            {membersLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : filteredMembers.length === 0 ? (
+              <div className="text-center py-8">
+                <User className="h-12 w-12 text-muted-foreground/50 mx-auto mb-2" />
+                <p className="text-muted-foreground text-sm">
+                  Nessun altro amministratore disponibile
+                </p>
+              </div>
+            ) : (
+              <ScrollArea className="h-[250px] pr-4">
+                <div className="space-y-2">
+                  {filteredMembers.map((member) => (
+                    <button
+                      key={member.memberId}
+                      onClick={() => setSelectedMember(member.memberId)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                        selectedMember === member.memberId
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      <Avatar>
+                        <AvatarFallback>
+                          {member.firstName?.[0]?.toUpperCase()}
+                          {member.lastName?.[0]?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium">
+                          {member.firstName} {member.lastName}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{member.email}</p>
+                      </div>
+                      {selectedMember === member.memberId && (
+                        <CheckCircle className="h-5 w-5 text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+          
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setAssignDialog({ open: false, email: "" })}
+              onClick={() => setAssignDialog({ open: false })}
             >
               Annulla
             </Button>
-            <Button onClick={handleAssign} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Assegna"}
+            <Button 
+              onClick={handleAssign} 
+              disabled={isSubmitting || !selectedMember}
+              className="gap-2"
+            >
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4" />
+              )}
+              Assegna
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -901,11 +1166,12 @@ export default function AdminTicketDetailPage() {
               variant="destructive"
               onClick={handleCloseTicket}
               disabled={isSubmitting}
+              className="gap-2"
             >
               {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <CheckCircle className="h-4 w-4 mr-1" />
+                <CheckCircle className="h-4 w-4" />
               )}
               Conferma chiusura
             </Button>
@@ -923,7 +1189,7 @@ export default function AdminTicketDetailPage() {
             </DialogDescription>
           </DialogHeader>
           <div
-            className="border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition cursor-pointer"
+            className="border-2 border-dashed rounded-lg p-6 text-center hover:bg-muted/50 transition cursor-pointer"
             onClick={() => fileInputRef.current?.click()}
           >
             <Input
@@ -933,16 +1199,18 @@ export default function AdminTicketDetailPage() {
               onChange={handleFileChange}
             />
             {selectedFile ? (
-              <div className="flex items-center justify-center gap-2">
-                <File className="h-4 w-4 text-primary" />
-                <span className="font-medium">{selectedFile.name}</span>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                <File className="h-5 w-5 text-primary" />
+                <span className="font-medium max-w-[200px] truncate">
+                  {selectedFile.name}
+                </span>
                 <span className="text-muted-foreground text-xs">
                   ({formatSize(selectedFile.size)})
                 </span>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedFile(null);
@@ -952,9 +1220,9 @@ export default function AdminTicketDetailPage() {
                 </Button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-0.5">
-                <Upload className="h-8 w-8 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="h-10 w-10 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
                   Clicca per selezionare un file
                 </span>
               </div>
@@ -974,14 +1242,17 @@ export default function AdminTicketDetailPage() {
             <Button variant="outline" onClick={() => setUploadDialogOpen(false)}>
               Annulla
             </Button>
-            <Button onClick={handleUploadAttachment} disabled={!selectedFile || uploading}>
+            <Button onClick={handleUploadAttachment} disabled={!selectedFile || uploading} className="gap-2">
               {uploading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Caricando...
                 </>
               ) : (
-                "Carica"
+                <>
+                  <Upload className="h-4 w-4" />
+                  Carica
+                </>
               )}
             </Button>
           </DialogFooter>

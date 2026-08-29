@@ -1,10 +1,10 @@
-// pages/private/ResidentDocumentsPage.tsx
+// src/pages/private/resident/ResidentDocumentsPage.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Search, FileText, Download, Eye } from "lucide-react";
+import { Search, FileText, Eye, FolderOpen, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -28,7 +28,9 @@ export default function ResidentDocumentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [size] = useState(10);
+  const [showSearch, setShowSearch] = useState(false);
 
   const fetchDocuments = async (resetPage = true) => {
     if (!condominiumId) {
@@ -45,9 +47,9 @@ export default function ResidentDocumentsPage() {
         ascending: false,
       });
       
-      // ✅ La tua API restituisce l'array in "data" e i metadati in "totalPages"
       setDocuments(response.data ?? []);
       setTotalPages(response.totalPages ?? 0);
+      setTotalElements(response.totalElements ?? 0);
       
       if (resetPage) setPage(0);
     } catch (error) {
@@ -62,7 +64,6 @@ export default function ResidentDocumentsPage() {
 
   useEffect(() => {
     fetchDocuments(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [condominiumId]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -74,6 +75,17 @@ export default function ResidentDocumentsPage() {
     navigate(`/resident/document/${documentId}`);
   };
 
+  const formatContentType = (contentType: string) => {
+    const map: Record<string, string> = {
+      "application/pdf": "PDF",
+      "image/jpeg": "JPEG",
+      "image/png": "PNG",
+      "application/msword": "Word",
+      "application/vnd.ms-excel": "Excel",
+      "text/plain": "TXT",
+    };
+    return map[contentType] || contentType;
+  };
 
   if (!condominiumId) {
     return (
@@ -84,85 +96,108 @@ export default function ResidentDocumentsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6">
-      {/* Intestazione */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Documenti</h1>
-          <p className="text-sm text-muted-foreground">
-            Cerca e scarica i tuoi documenti
-          </p>
+    <div className="p-4 md:p-6 space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-primary/10 p-2">
+            <FolderOpen className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold">Documenti</h1>
+            <p className="text-sm text-muted-foreground">
+              {totalElements} documenti disponibili
+            </p>
+          </div>
         </div>
-        <Badge variant="outline" className="text-sm px-3 py-1">
-          {documents.length} documenti
-        </Badge>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowSearch(!showSearch)}
+          className="gap-2"
+        >
+          {showSearch ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+          {showSearch ? "Chiudi" : "Cerca"}
+        </Button>
       </div>
 
-      {/* Ricerca */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Cerca per nome file..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 py-6 text-base"
-          />
-        </div>
-        <Button type="submit" size="lg" className="px-6">
-          Cerca
-        </Button>
-      </form>
+      {/* Search */}
+      {showSearch && (
+        <Card>
+          <CardContent className="p-3">
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Cerca per nome file..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button type="submit" size="sm" className="gap-2">
+                <Search className="h-4 w-4" />
+                Cerca
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Lista */}
+      {/* Loading */}
       {loading ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-xl" />
+            <Card key={i}>
+              <CardContent className="p-4">
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
           ))}
         </div>
       ) : documents.length === 0 ? (
-        <Card className="p-8 text-center">
-          <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
-          <p className="mt-2 text-muted-foreground">Nessun documento disponibile</p>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="rounded-full bg-muted p-4 mb-3">
+              <FileText className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="font-medium text-muted-foreground">Nessun documento disponibile</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Non ci sono documenti da visualizzare
+            </p>
+          </CardContent>
         </Card>
       ) : (
         <>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {documents.map((doc) => (
               <Card
                 key={doc.id}
-                className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer active:scale-[0.99]"
+                className="cursor-pointer hover:shadow-md transition-all active:scale-[0.99]"
                 onClick={() => goToDetail(doc.id)}
               >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base md:text-lg font-semibold truncate">
-                      {doc.originalName}
-                    </CardTitle>
-                    <Badge variant="secondary" className="shrink-0">
-                      v.{doc.currentVersion}
-                    </Badge>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+                        <FileText className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold truncate">{doc.originalName}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-[10px]">
+                            {formatContentType(doc.contentType)}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            v{doc.currentVersion}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Eye className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
                   </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {doc.contentType} • {doc.status}
-                  </p>
-                </CardHeader>
-                <CardFooter className="flex justify-end pt-2 gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goToDetail(doc.id);
-                    }}
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Dettagli
-                  </Button>
-                </CardFooter>
+                </CardContent>
               </Card>
             ))}
           </div>
@@ -172,7 +207,7 @@ export default function ResidentDocumentsPage() {
             <div className="flex justify-center items-center gap-3 mt-6">
               <Button
                 variant="outline"
-                size="lg"
+                size="sm"
                 disabled={page === 0}
                 onClick={() => {
                   setPage((p) => p - 1);
@@ -186,7 +221,7 @@ export default function ResidentDocumentsPage() {
               </span>
               <Button
                 variant="outline"
-                size="lg"
+                size="sm"
                 disabled={page >= totalPages - 1}
                 onClick={() => {
                   setPage((p) => p + 1);

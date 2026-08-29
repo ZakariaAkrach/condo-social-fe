@@ -1,69 +1,133 @@
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Menu } from "lucide-react"
-import { useAuth } from "@/auth/AuthProvider"
-import ThemeToggle from "../common/ThemeToggle"
+import { Button } from "@/components/ui/button";
+import { Menu, ArrowLeft, ExternalLink } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
-  isCollapsed: boolean
-  setIsCollapsed: (collapsed: boolean) => void
+  isCollapsed: boolean;
+  setIsCollapsed: (collapsed: boolean) => void;
+  setIsMobileOpen: (open: boolean) => void;
 }
 
-export function AdminHeader({ isCollapsed, setIsCollapsed }: HeaderProps) {
-  const { profile } = useAuth()
+export function AdminHeader({ isCollapsed, setIsCollapsed, setIsMobileOpen }: HeaderProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Funzione per tornare indietro
+  const handleGoBack = () => {
+    // Se c'è una history, torna indietro
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      // Fallback: vai alla dashboard
+      navigate("/admin/dashboard");
+    }
+  };
+
+  // Determina se mostrare il pulsante indietro
+  const showBackButton = location.pathname !== "/admin/dashboard";
+
+  // Ottieni il titolo della pagina corrente
+  const getPageTitle = () => {
+    const path = location.pathname;
+    const segments = path.split("/").filter(Boolean);
+    
+    // Mappa path a titoli leggibili
+    const pathTitles: Record<string, string> = {
+      admin: "Dashboard",
+      dashboard: "Dashboard",
+      condomini: "Condomini",
+      tickets: "Ticket",
+      posts: "Comunicazioni",
+      documenti: "Documenti",
+      archive: "Archivio",
+      residents: "Residenti",
+      settings: "Impostazioni",
+      "nuovo-condominio": "Nuovo Condominio",
+      "create": "Nuova Comunicazione",
+    };
+
+    // Cerca l'ultimo segmento significativo
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const segment = segments[i];
+      
+      // Salta gli ID
+      if (/^[0-9a-f-]{8,}$/i.test(segment) || /^\d+$/.test(segment)) {
+        continue;
+      }
+      
+      if (pathTitles[segment]) {
+        return pathTitles[segment];
+      }
+      
+      // Se non trovato nella mappa, capitalizza
+      return segment.charAt(0).toUpperCase() + segment.slice(1);
+    }
+    
+    return "Dashboard";
+  };
+
+  const pageTitle = getPageTitle();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 px-6">
-      <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-40 flex h-14 sm:h-16 items-center justify-between border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 px-3 sm:px-4 md:px-6">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+        {/* Mobile menu button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsMobileOpen(true)}
+          className="lg:hidden text-muted-foreground hover:text-foreground shrink-0 h-9 w-9"
+          aria-label="Apri menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
+        {/* Desktop collapse button */}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="text-muted-foreground hover:text-foreground"
+          className="hidden lg:inline-flex text-muted-foreground hover:text-foreground shrink-0 h-9 w-9"
+          aria-label="Toggle sidebar"
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
+
+        {/* Back button */}
+        {showBackButton && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleGoBack}
+            className="text-muted-foreground hover:text-foreground h-9 px-2 sm:px-3 gap-1.5"
+            aria-label="Torna indietro"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Indietro</span>
+          </Button>
+        )}
+
+        {/* Page title */}
+        <div className="flex items-center min-w-0">
+          <h1 className="text-sm sm:text-base font-semibold text-foreground truncate">
+            {pageTitle}
+          </h1>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src="/avatars/01.png" alt={profile?.firstName || "User"} />
-                <AvatarFallback className="bg-primary/10 text-primary">
-                  {profile?.firstName?.[0] || "A"}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">
-                  {profile?.firstName} {profile?.lastName}
-                </p>
-                <p className="text-xs text-muted-foreground">{profile?.email}</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Profilo</DropdownMenuItem>
-            <DropdownMenuItem>Impostazioni</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Logout</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <ThemeToggle />
+      {/* Right side - clean, no clutter */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-2">
+        {/* Quick actions */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="hidden sm:inline-flex text-muted-foreground hover:text-foreground h-9 px-2 sm:px-3"
+        >
+          <ExternalLink className="h-4 w-4 mr-1.5" />
+          <span className="hidden md:inline">Supporto</span>
+        </Button>
       </div>
     </header>
-  )
+  );
 }

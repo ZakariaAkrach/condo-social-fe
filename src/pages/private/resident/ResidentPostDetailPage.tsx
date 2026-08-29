@@ -6,20 +6,22 @@ import {
   ArrowLeft,
   FileText,
   BarChart3,
-  User,
   Download,
   CheckCircle,
   AlertCircle,
   RefreshCw,
+  Paperclip,
+  Vote,
+  Calendar,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { it } from "date-fns/locale";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -28,23 +30,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { downloadFileFromStorage } from "@/auth/downloadFileFromStorage";
 import { useCondominium } from "@/components/residentDashboard/CondominiumContext";
 import type { FetchDetailPostResponseDto, FetchPostDocumentsResponseDto } from "@/app/api/postAdmin";
 import { postResidentApi, type PollQuestionResidentResponseDto } from "@/app/api/postResident";
 import { documentResidentApi } from "@/app/api/documentResident";
-
-const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
-  ACTIVE: { label: "Attivo", variant: "default" },
-  DRAFT: { label: "Bozza", variant: "secondary" },
-  DELETED: { label: "Eliminato", variant: "outline" },
-};
 
 export default function ResidentPostDetailPage() {
   const navigate = useNavigate();
@@ -64,8 +61,9 @@ export default function ResidentPostDetailPage() {
   const [selectedOption, setSelectedOption] = useState<string>("");
   const [voting, setVoting] = useState(false);
   const [voteDialogOpen, setVoteDialogOpen] = useState(false);
+  const [isModifyingVote, setIsModifyingVote] = useState(false);
 
-  const [downloading, setDownloading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const fetchPostDetail = useCallback(async () => {
     if (!condominiumId || !postId) return;
@@ -97,7 +95,7 @@ export default function ResidentPostDetailPage() {
         ascending: false,
       });
       setDocuments(response.data || []);
-    } catch (err: any) {
+    } catch {
       toast.error("Errore nel caricamento dei documenti");
     } finally {
       setDocumentsLoading(false);
@@ -114,7 +112,7 @@ export default function ResidentPostDetailPage() {
       if (response.data?.userOptionId) {
         setSelectedOption(response.data.userOptionId);
       }
-    } catch (err: any) {
+    } catch {
       toast.error("Errore nel caricamento del sondaggio");
     } finally {
       setPollLoading(false);
@@ -142,17 +140,17 @@ export default function ResidentPostDetailPage() {
       await fetchPoll();
     }
     setRefreshing(false);
-    toast.info("Dettaglio aggiornato");
+    toast.success("Dettaglio aggiornato");
   };
 
   const goBack = () => {
-    navigate("/resident/posts");
+    navigate(-1);
   };
 
   const handleDownload = async (documentId: string) => {
     if (!condominiumId) return;
 
-    setDownloading(true);
+    setDownloadingId(documentId);
     try {
       const response = await documentResidentApi.download(condominiumId, documentId);
       const downloadUrl = response.data.downloadURL;
@@ -176,7 +174,7 @@ export default function ResidentPostDetailPage() {
     } catch (error: any) {
       toast.error(error?.message || "Errore durante il download");
     } finally {
-      setDownloading(false);
+      setDownloadingId(null);
     }
   };
 
@@ -189,10 +187,10 @@ export default function ResidentPostDetailPage() {
     setVoting(true);
     try {
       await postResidentApi.pollVote(condominiumId, postId, { optionId: selectedOption });
-      toast.success("Voto registrato con successo!");
+      toast.success(isModifyingVote ? "Voto modificato con successo!" : "Voto registrato con successo!");
       setVoteDialogOpen(false);
+      setIsModifyingVote(false);
       await fetchPoll();
-      await fetchPostDetail();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Errore durante il voto");
     } finally {
@@ -200,29 +198,22 @@ export default function ResidentPostDetailPage() {
     }
   };
 
-  const StatusBadge = ({ status }: { status: string }) => {
-    const config = STATUS_MAP[status] || STATUS_MAP.DRAFT;
-    return (
-      <Badge variant={config.variant} className="text-xs">
-        {config.label}
-      </Badge>
-    );
+  const openModifyVote = () => {
+    setIsModifyingVote(true);
+    setVoteDialogOpen(true);
   };
 
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), "dd MMM yyyy HH:mm", { locale: it });
+  const getInitials = (firstName?: string, lastName?: string) => {
+    return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase() || "?";
   };
 
   if (loading) {
     return (
-      <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto">
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <Skeleton className="h-8 w-48" />
-        </div>
-        <Skeleton className="h-6 w-32" />
-        <Skeleton className="h-32 w-full rounded-lg" />
-        <Skeleton className="h-40 w-full rounded-lg" />
+      <div className="p-4 md:p-6 space-y-4 max-w-3xl mx-auto">
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-48 w-full rounded-lg" />
       </div>
     );
   }
@@ -233,8 +224,8 @@ export default function ResidentPostDetailPage() {
         <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
         <h3 className="text-lg font-semibold mb-2">Impossibile caricare l'annuncio</h3>
         <p className="text-muted-foreground mb-4">{error || "Annuncio non trovato"}</p>
-        <Button variant="outline" onClick={goBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
+        <Button variant="outline" onClick={goBack} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
           Torna indietro
         </Button>
       </div>
@@ -242,240 +233,300 @@ export default function ResidentPostDetailPage() {
   }
 
   const totalVotes = poll?.optionTexts?.reduce((sum, opt) => sum + (opt.numberVotes || 0), 0) || 0;
+  const fullName = `${post.createdByFirstName} ${post.createdByLastName}`.trim();
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={goBack} className="shrink-0">
-            <ArrowLeft className="h-4 w-4" />
+    <div className="max-w-3xl mx-auto">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={goBack}
+            className="h-9 w-9 shrink-0"
+          >
+            <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold">{post.title}</h1>
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <StatusBadge status={post.status} />
-              <span className="text-xs text-muted-foreground">
-                {formatDate(post.createdAt)}
-              </span>
-            </div>
+          <h1 className="text-base font-semibold truncate flex-1 text-center">
+            Dettaglio annuncio
+          </h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="h-9 w-9 shrink-0"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-4 md:p-6 space-y-5">
+        {/* Author header */}
+        <div className="flex items-center gap-3">
+          <Avatar className="h-12 w-12 shrink-0">
+            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+              {getInitials(post.createdByFirstName, post.createdByLastName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm">{fullName}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true, locale: it })}
+            </p>
           </div>
+          <Badge variant="secondary" className="text-[10px]">
+            Admin
+          </Badge>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={handleRefresh}
-          disabled={refreshing}
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-        </Button>
-      </div>
+        {/* Title */}
+        <h1 className="text-xl sm:text-2xl font-bold leading-snug">
+          {post.title}
+        </h1>
 
-      {/* Author */}
-      <div className="flex items-center gap-3 text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
-        <User className="h-4 w-4" />
-        <span>
-          Pubblicato da <strong>{post.createdByFirstName} {post.createdByLastName}</strong>
-        </span>
-        <span>•</span>
-        <span>{post.createdByEmail}</span>
-      </div>
-
-      <Separator />
-
-      {/* Body */}
-      <Card>
-        <CardContent className="pt-6">
-          <div
-            className="prose prose-sm dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: post.body }}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
+        {/* Body */}
         <Card>
-          <CardContent className="pt-4 flex items-center gap-3">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-2xl font-bold">{post.documents}</p>
-              <p className="text-xs text-muted-foreground">Documenti</p>
-            </div>
+          <CardContent className="p-5">
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none text-foreground/80 leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: post.body }}
+            />
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 flex items-center gap-3">
-            <BarChart3 className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="text-2xl font-bold">{post.poll ? "Sì" : "No"}</p>
-              <p className="text-xs text-muted-foreground">Sondaggio</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="documents" className="w-full">
-        <TabsList className="w-full grid grid-cols-2">
-          <TabsTrigger value="documents" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
-            Documenti
+        {/* Indicators */}
+        {(post.documents > 0 || post.poll) && (
+          <div className="flex gap-2 flex-wrap">
             {post.documents > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs">
-                {post.documents}
+              <Badge variant="outline" className="gap-1 text-xs py-1">
+                <Paperclip className="h-3.5 w-3.5" />
+                {post.documents} allegati
               </Badge>
             )}
-          </TabsTrigger>
-          {post.poll && (
-            <TabsTrigger value="poll" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Sondaggio
-            </TabsTrigger>
-          )}
-        </TabsList>
+            {post.poll && (
+              <Badge variant="outline" className="gap-1 text-xs py-1 bg-primary/5 border-primary/20">
+                <Vote className="h-3.5 w-3.5" />
+                Sondaggio
+              </Badge>
+            )}
+          </div>
+        )}
 
-        {/* Documents Tab */}
-        <TabsContent value="documents" className="space-y-4 pt-4">
-          {documentsLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : documents.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">Nessun documento allegato</p>
-              <p className="text-sm">Questo annuncio non ha documenti.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <div
-                  key={doc.documentId}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="h-5 w-5 text-primary flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-medium truncate">{doc.originalName}</p>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>{doc.contentType}</span>
-                        <span>•</span>
-                        <span>v{doc.currentVersion}</span>
-                        {doc.publicForCondominium && (
-                          <>
-                            <span>•</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              Pubblico
-                            </Badge>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDownload(doc.documentId)}
-                    disabled={downloading}
-                    className="gap-2 self-start sm:self-center"
-                  >
-                    <Download className="h-4 w-4" />
-                    Scarica
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Poll Tab */}
-        {post.poll && (
-          <TabsContent value="poll" className="space-y-4 pt-4">
-            {pollLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        {/* Documents section with scroll */}
+        {post.documents > 0 && (
+          <section className="space-y-3">
+            <h2 className="font-semibold text-lg flex items-center gap-2">
+              <Paperclip className="h-5 w-5 text-primary" />
+              Documenti allegati
+              <Badge variant="secondary" className="text-xs">
+                {documents.length}
+              </Badge>
+            </h2>
+            
+            {documentsLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
               </div>
-            ) : !poll ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Nessun sondaggio disponibile</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold">{poll.question}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {poll.userVoted ? "Hai già votato" : "Esprimi il tuo voto"}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  {poll.optionTexts.map((option) => {
-                    const percentage = totalVotes > 0
-                      ? Math.round((option.numberVotes / totalVotes) * 100)
-                      : 0;
-                    const isSelected = poll.userVoted && option.optionId === poll.userOptionId;
-
-                    return (
-                      <div
-                        key={option.optionId}
-                        className={`p-3 border rounded-lg transition-colors ${
-                          isSelected ? "border-primary bg-primary/5" : ""
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            {poll.userVoted && isSelected && (
-                              <CheckCircle className="h-4 w-4 text-primary flex-shrink-0" />
-                            )}
-                            <span className="font-medium truncate">{option.optionText}</span>
+            ) : documents.length === 0 ? (
+              <Card>
+                <CardContent className="p-6 text-center text-muted-foreground">
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nessun documento disponibile</p>
+                </CardContent>
+              </Card>
+            ) : documents.length > 3 ? (
+              <ScrollArea className="h-[280px] rounded-lg border">
+                <div className="p-2 space-y-2">
+                  {documents.map((doc) => (
+                    <Card key={doc.documentId} className="hover:bg-muted/30 transition-colors">
+                      <CardContent className="p-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+                            <FileText className="h-4 w-4 text-primary" />
                           </div>
-                          <span className="text-sm font-medium whitespace-nowrap">
-                            {option.numberVotes} voti ({percentage}%)
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{doc.originalName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              v{doc.currentVersion} • {doc.contentType}
+                            </p>
+                          </div>
                         </div>
-                        <div className="mt-2">
-                          <Progress value={percentage} className="h-2" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownload(doc.documentId)}
+                          disabled={downloadingId === doc.documentId}
+                          className="gap-1 shrink-0 h-8"
+                        >
+                          {downloadingId === doc.documentId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                          <span className="hidden sm:inline text-xs">Scarica</span>
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <Card key={doc.documentId} className="hover:bg-muted/30 transition-colors">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+                          <FileText className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm truncate">{doc.originalName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            v{doc.currentVersion} • {doc.contentType}
+                          </p>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Totale voti: {totalVotes}</span>
-                  {poll.userVoted && (
-                    <Badge variant="outline" className="gap-1">
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                      Voto registrato
-                    </Badge>
-                  )}
-                </div>
-
-                {!poll.userVoted && (
-                  <Button
-                    className="w-full"
-                    onClick={() => setVoteDialogOpen(true)}
-                  >
-                    Partecipa al sondaggio
-                  </Button>
-                )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownload(doc.documentId)}
+                        disabled={downloadingId === doc.documentId}
+                        className="gap-2 shrink-0"
+                      >
+                        {downloadingId === doc.documentId ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                        <span className="hidden sm:inline">Scarica</span>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             )}
-          </TabsContent>
+          </section>
         )}
-      </Tabs>
+
+        {/* Poll section with modify vote */}
+        {post.poll && (
+          <section className="space-y-3">
+            <h2 className="font-semibold text-lg flex items-center gap-2">
+              <Vote className="h-5 w-5 text-primary" />
+              Sondaggio
+            </h2>
+
+            {pollLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : !poll ? (
+              <Card>
+                <CardContent className="p-6 text-center text-muted-foreground">
+                  <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">Nessun sondaggio disponibile</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-5 space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-base">{poll.question}</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {poll.userVoted ? "Hai già votato. Puoi modificare il tuo voto." : "Esprimi il tuo voto"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {poll.optionTexts.map((option) => {
+                      const percentage = totalVotes > 0
+                        ? Math.round((option.numberVotes / totalVotes) * 100)
+                        : 0;
+                      const isSelected = poll.userVoted && option.optionId === poll.userOptionId;
+
+                      return (
+                        <div
+                          key={option.optionId}
+                          className={`p-3 rounded-lg border transition-colors ${
+                            isSelected ? "border-primary bg-primary/5" : ""
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {isSelected && (
+                                <CheckCircle className="h-4 w-4 text-primary shrink-0" />
+                              )}
+                              <span className="text-sm font-medium truncate">{option.optionText}</span>
+                            </div>
+                            <span className="text-xs font-semibold whitespace-nowrap">
+                              {percentage}%
+                            </span>
+                          </div>
+                          <Progress value={percentage} className="h-2" />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {option.numberVotes} voti
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-sm text-muted-foreground">
+                      Totale: {totalVotes} voti
+                    </span>
+                    {poll.userVoted ? (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="gap-1">
+                          <CheckCircle className="h-3 w-3 text-green-500" />
+                          Voto registrato
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={openModifyVote}
+                          className="gap-1"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Modifica
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setIsModifyingVote(false);
+                          setVoteDialogOpen(true);
+                        }}
+                        className="gap-2"
+                      >
+                        <Vote className="h-4 w-4" />
+                        Vota
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </section>
+        )}
+      </div>
 
       {/* Vote Dialog */}
       <Dialog open={voteDialogOpen} onOpenChange={setVoteDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Partecipa al sondaggio</DialogTitle>
+            <DialogTitle>
+              {isModifyingVote ? "Modifica il tuo voto" : "Partecipa al sondaggio"}
+            </DialogTitle>
             <DialogDescription>
-              Scegli un'opzione e conferma il tuo voto.
+              {isModifyingVote 
+                ? "Scegli una nuova opzione per modificare il tuo voto."
+                : "Scegli un'opzione e conferma il tuo voto."}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -487,10 +538,14 @@ export default function ResidentPostDetailPage() {
               {poll?.optionTexts.map((option) => (
                 <div
                   key={option.optionId}
-                  className="flex items-center space-x-2 p-2 rounded-lg border hover:bg-muted/30 transition-colors"
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedOption === option.optionId
+                      ? "border-primary bg-primary/5"
+                      : "hover:bg-muted/30"
+                  }`}
                 >
                   <RadioGroupItem value={option.optionId} id={option.optionId} />
-                  <Label htmlFor={option.optionId} className="flex-1 cursor-pointer">
+                  <Label htmlFor={option.optionId} className="flex-1 cursor-pointer text-sm">
                     {option.optionText}
                   </Label>
                 </div>
@@ -501,14 +556,17 @@ export default function ResidentPostDetailPage() {
             <Button variant="outline" onClick={() => setVoteDialogOpen(false)}>
               Annulla
             </Button>
-            <Button onClick={handleVote} disabled={!selectedOption || voting}>
+            <Button onClick={handleVote} disabled={!selectedOption || voting} className="gap-2">
               {voting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Voto in corso...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {isModifyingVote ? "Modifica..." : "Voto..."}
                 </>
               ) : (
-                "Vota"
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  {isModifyingVote ? "Conferma modifica" : "Conferma voto"}
+                </>
               )}
             </Button>
           </DialogFooter>

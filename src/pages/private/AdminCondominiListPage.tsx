@@ -25,14 +25,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationLink,
-    PaginationNext,
-    PaginationPrevious,
-} from "@/components/ui/pagination";
-import {
     Loader2,
     Search,
     ArrowUpDown,
@@ -41,6 +33,12 @@ import {
     Home,
     Trash2,
     XCircle,
+    Filter,
+    X,
+    ChevronLeft,
+    ChevronRight,
+    Building2,
+    Plus,
 } from "lucide-react";
 import {
     condominiumApi,
@@ -56,6 +54,8 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SortField =
     | "name"
@@ -71,37 +71,26 @@ const SEARCH_DEBOUNCE_MS = 600;
 export default function AdminCondominiListPage() {
     const navigate = useNavigate();
 
-    // -------------------------------------------------------------------------
     // Data
-    // -------------------------------------------------------------------------
-
     const [condomini, setCondomini] = useState<CondominiumDto[]>([]);
     const [totalElements, setTotalElements] = useState(0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // -------------------------------------------------------------------------
     // Filters
-    // -------------------------------------------------------------------------
-
     const [nameFilter, setNameFilter] = useState("");
     const [addressFilter, setAddressFilter] = useState("");
     const [debouncedNameFilter, setDebouncedNameFilter] = useState("");
     const [debouncedAddressFilter, setDebouncedAddressFilter] = useState("");
+    const [showFilters, setShowFilters] = useState(false);
 
-    // -------------------------------------------------------------------------
     // Pagination & sorting
-    // -------------------------------------------------------------------------
-
     const [page, setPage] = useState(0);
     const [size, setSize] = useState(10);
     const [sortField, setSortField] = useState<SortField>("name");
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-    // -------------------------------------------------------------------------
     // Delete dialog states
-    // -------------------------------------------------------------------------
-
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
     const [deleteTargetName, setDeleteTargetName] = useState("");
@@ -109,10 +98,7 @@ export default function AdminCondominiListPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    // -------------------------------------------------------------------------
     // Debounce ricerca
-    // -------------------------------------------------------------------------
-
     useEffect(() => {
         const timer = window.setTimeout(() => {
             setDebouncedNameFilter(nameFilter.trim());
@@ -125,10 +111,7 @@ export default function AdminCondominiListPage() {
         };
     }, [nameFilter, addressFilter]);
 
-    // -------------------------------------------------------------------------
     // Fetch condomini
-    // -------------------------------------------------------------------------
-
     const fetchCondomini = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -168,10 +151,7 @@ export default function AdminCondominiListPage() {
         fetchCondomini();
     }, [fetchCondomini]);
 
-    // -------------------------------------------------------------------------
     // Sorting
-    // -------------------------------------------------------------------------
-
     const handleSort = (field: SortField) => {
         if (sortField === field) {
             setSortDirection((currentDirection) =>
@@ -195,10 +175,7 @@ export default function AdminCondominiListPage() {
         );
     };
 
-    // -------------------------------------------------------------------------
     // Pagination
-    // -------------------------------------------------------------------------
-
     const totalPages = Math.ceil(totalElements / size);
 
     const handlePageChange = (newPage: number) => {
@@ -213,10 +190,7 @@ export default function AdminCondominiListPage() {
         setPage(0);
     };
 
-    // -------------------------------------------------------------------------
     // Filters
-    // -------------------------------------------------------------------------
-
     const handleClearFilters = () => {
         setNameFilter("");
         setAddressFilter("");
@@ -224,10 +198,7 @@ export default function AdminCondominiListPage() {
 
     const hasActiveFilters = nameFilter.trim() !== "" || addressFilter.trim() !== "";
 
-    // -------------------------------------------------------------------------
     // Delete handlers
-    // -------------------------------------------------------------------------
-
     const handleDeleteClick = (id: string, name: string) => {
         setDeleteTargetId(id);
         setDeleteTargetName(name);
@@ -244,11 +215,8 @@ export default function AdminCondominiListPage() {
 
         try {
             await condominiumApi.deleteCondominium(deleteTargetId);
-
-            // Chiudi il dialog
             setDeleteDialogOpen(false);
 
-            // Ricarica i dati per la pagina corrente
             const response = await condominiumApi.fetchCondominiums({
                 page,
                 size,
@@ -261,10 +229,8 @@ export default function AdminCondominiListPage() {
             setCondomini(response.data ?? []);
             setTotalElements(response.totalElements ?? 0);
 
-            // Se la pagina corrente è vuota e non siamo alla prima, vai indietro
             if ((response.data?.length ?? 0) === 0 && page > 0) {
                 setPage(page - 1);
-                // L'effect su page farà il fetch automaticamente
             }
         } catch (err: any) {
             setDeleteError(err.message || "Errore durante l'eliminazione");
@@ -273,24 +239,24 @@ export default function AdminCondominiListPage() {
         }
     };
 
-    // -------------------------------------------------------------------------
-    // Render
-    // -------------------------------------------------------------------------
-
     return (
-        <section className="space-y-6">
+        <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h2 className="flex items-center gap-2.5 text-2xl font-bold text-foreground">
-                        <Home className="h-6 w-6 text-primary" />
-                        Condomini
-                    </h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Ricerca e gestione di tutti i condomini
-                    </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-primary/10 p-2">
+                        <Building2 className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl sm:text-2xl font-bold text-foreground">
+                            Condomini
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            {totalElements} condomini totali
+                        </p>
+                    </div>
                 </div>
-                <CreateCondominium />
+                 <CreateCondominium onCondominiumCreated={fetchCondomini} />
             </div>
 
             {/* Filtri */}
@@ -298,173 +264,153 @@ export default function AdminCondominiListPage() {
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-base">Filtri di ricerca</CardTitle>
-                            <CardDescription>Cerca per nome o indirizzo</CardDescription>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Filter className="h-5 w-5 text-primary" />
+                                Filtri di ricerca
+                            </CardTitle>
                         </div>
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={handleClearFilters}
-                            disabled={!hasActiveFilters}
-                            className="gap-1"
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="gap-2"
                         >
-                            <XCircle className="h-4 w-4" />
-                            Cancella filtri
+                            {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+                            {showFilters ? "Nascondi" : "Mostra"}
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1">
-                        <label htmlFor="filter-name" className="text-sm font-medium">
-                            Nome condominio
-                        </label>
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                id="filter-name"
-                                placeholder="Es. Condominio Milano"
-                                value={nameFilter}
-                                onChange={(event) => setNameFilter(event.target.value)}
-                                className="pl-8"
-                            />
+                {showFilters && (
+                    <CardContent className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1">
+                            <Label className="text-xs">Nome condominio</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Es. Condominio Milano"
+                                    value={nameFilter}
+                                    onChange={(event) => setNameFilter(event.target.value)}
+                                    className="pl-9 h-9"
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className="space-y-1">
-                        <label htmlFor="filter-address" className="text-sm font-medium">
-                            Indirizzo
-                        </label>
-                        <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                id="filter-address"
-                                placeholder="Es. Via Roma, 12"
-                                value={addressFilter}
-                                onChange={(event) => setAddressFilter(event.target.value)}
-                                className="pl-8"
-                            />
+                        <div className="space-y-1">
+                            <Label className="text-xs">Indirizzo</Label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="Es. Via Roma, 12"
+                                    value={addressFilter}
+                                    onChange={(event) => setAddressFilter(event.target.value)}
+                                    className="pl-9 h-9"
+                                />
+                            </div>
                         </div>
-                    </div>
-                </CardContent>
+                        {hasActiveFilters && (
+                            <div className="sm:col-span-2 flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleClearFilters}
+                                    className="gap-2"
+                                >
+                                    <XCircle className="h-4 w-4" />
+                                    Cancella filtri
+                                </Button>
+                            </div>
+                        )}
+                    </CardContent>
+                )}
             </Card>
 
             {/* Tabella */}
             <Card>
-                <CardHeader className="pb-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <CardTitle className="text-base">
-                            Risultati ({totalElements})
-                        </CardTitle>
-                        <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">
-                                Righe per pagina
-                            </span>
-                            <Select value={String(size)} onValueChange={handleSizeChange}>
-                                <SelectTrigger className="w-[70px]">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="5">5</SelectItem>
-                                    <SelectItem value="10">10</SelectItem>
-                                    <SelectItem value="20">20</SelectItem>
-                                    <SelectItem value="50">50</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                </CardHeader>
-
-                <CardContent>
-                    {loading ? (
-                        <div className="flex justify-center py-12">
-                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        </div>
-                    ) : error ? (
-                        <div className="py-12 text-center text-destructive">
-                            <p>Errore: {error}</p>
-                        </div>
-                    ) : condomini.length === 0 ? (
-                        <div className="py-12 text-center text-muted-foreground">
-                            <p>Nessun condominio trovato.</p>
-                            {hasActiveFilters && (
-                                <Button variant="link" onClick={handleClearFilters} className="mt-2">
-                                    Rimuovi filtri
-                                </Button>
-                            )}
-                        </div>
-                    ) : (
-                        <>
-                            <div className="rounded-md border">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead
-                                                className="cursor-pointer transition-colors hover:bg-muted/50"
-                                                onClick={() => handleSort("name")}
-                                            >
-                                                <div className="flex items-center">
-                                                    Nome
-                                                    {renderSortIcon("name")}
-                                                </div>
-                                            </TableHead>
-                                            <TableHead
-                                                className="cursor-pointer transition-colors hover:bg-muted/50"
-                                                onClick={() => handleSort("address")}
-                                            >
-                                                <div className="flex items-center">
-                                                    Indirizzo
-                                                    {renderSortIcon("address")}
-                                                </div>
-                                            </TableHead>
-                                            <TableHead
-                                                className="cursor-pointer transition-colors hover:bg-muted/50"
-                                                onClick={() => handleSort("city")}
-                                            >
-                                                <div className="flex items-center">
-                                                    Città
-                                                    {renderSortIcon("city")}
-                                                </div>
-                                            </TableHead>
-                                            <TableHead
-                                                className="hidden cursor-pointer transition-colors hover:bg-muted/50 md:table-cell"
-                                                onClick={() => handleSort("cap")}
-                                            >
-                                                <div className="flex items-center">
-                                                    CAP
-                                                    {renderSortIcon("cap")}
-                                                </div>
-                                            </TableHead>
-                                            <TableHead
-                                                className="hidden cursor-pointer transition-colors hover:bg-muted/50 lg:table-cell"
-                                                onClick={() => handleSort("condominiumEmail")}
-                                            >
-                                                <div className="flex items-center">
-                                                    Email
-                                                    {renderSortIcon("condominiumEmail")}
-                                                </div>
-                                            </TableHead>
-                                            <TableHead className="text-right">Azioni</TableHead>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-muted/50">
+                                    <TableHead
+                                        className="font-semibold cursor-pointer hover:text-primary"
+                                        onClick={() => handleSort("name")}
+                                    >
+                                        <div className="flex items-center">
+                                            Nome
+                                            {renderSortIcon("name")}
+                                        </div>
+                                    </TableHead>
+                                    <TableHead
+                                        className="font-semibold cursor-pointer hover:text-primary hidden md:table-cell"
+                                        onClick={() => handleSort("address")}
+                                    >
+                                        <div className="flex items-center">
+                                            Indirizzo
+                                            {renderSortIcon("address")}
+                                        </div>
+                                    </TableHead>
+                                    <TableHead
+                                        className="font-semibold cursor-pointer hover:text-primary hidden lg:table-cell"
+                                        onClick={() => handleSort("city")}
+                                    >
+                                        <div className="flex items-center">
+                                            Città
+                                            {renderSortIcon("city")}
+                                        </div>
+                                    </TableHead>
+                                    <TableHead className="font-semibold text-right">Azioni</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {loading ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell colSpan={4}>
+                                                <Skeleton className="h-12 w-full" />
+                                            </TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {condomini.map((condominium) => (
-                                            <TableRow
-                                                key={condominium.id}
-                                                className="transition-colors hover:bg-muted/50"
-                                            >
-                                                <TableCell className="font-medium">
-                                                    {condominium.name}
-                                                </TableCell>
-                                                <TableCell>{condominium.address}</TableCell>
-                                                <TableCell>{condominium.city}</TableCell>
-                                                <TableCell className="hidden md:table-cell">
-                                                    {condominium.cap || "-"}
-                                                </TableCell>
-                                                <TableCell className="hidden lg:table-cell">
-                                                    {condominium.condominiumEmail || "-"}
-                                                </TableCell>
-                                                <TableCell className="text-right space-x-2 whitespace-nowrap">
+                                    ))
+                                ) : condomini.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="text-center py-12">
+                                            <Building2 className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
+                                            <p className="text-muted-foreground font-medium">Nessun condominio trovato</p>
+                                            {hasActiveFilters && (
+                                                <Button variant="link" onClick={handleClearFilters} className="mt-2">
+                                                    Rimuovi filtri
+                                                </Button>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    condomini.map((condominium) => (
+                                        <TableRow
+                                            key={condominium.id}
+                                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                            onClick={() => navigate(`/admin/condomini/${condominium.id}`)}
+                                        >
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="rounded-lg bg-primary/10 p-2">
+                                                        <Building2 className="h-4 w-4 text-primary" />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium truncate">{condominium.name}</p>
+                                                        <p className="text-xs text-muted-foreground truncate sm:hidden">
+                                                            {condominium.address}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="hidden md:table-cell">
+                                                {condominium.address}
+                                            </TableCell>
+                                            <TableCell className="hidden lg:table-cell">
+                                                {condominium.city}
+                                            </TableCell>
+                                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-1">
                                                     <Button
-                                                        variant="default"
+                                                        variant="ghost"
                                                         size="sm"
                                                         onClick={() => navigate(`/admin/condomini/${condominium.id}`)}
                                                         className="gap-1"
@@ -473,90 +419,78 @@ export default function AdminCondominiListPage() {
                                                         <span className="hidden sm:inline">Entra</span>
                                                     </Button>
                                                     <Button
-                                                        variant="outline"
+                                                        variant="ghost"
                                                         size="sm"
                                                         onClick={() =>
                                                             handleDeleteClick(condominium.id, condominium.name)
                                                         }
-                                                        className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                        title="Elimina condominio"
+                                                        className="gap-1 text-destructive hover:text-destructive"
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                         <span className="hidden sm:inline">Elimina</span>
                                                     </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-
-                            {/* Pagination */}
-                            {totalPages > 0 && (
-                                <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="text-sm text-muted-foreground">
-                                        Mostrati {condomini.length} di {totalElements} condomini
-                                        <span className="ml-2 hidden sm:inline">
-                                            – Pagina {page + 1} di {totalPages}
-                                        </span>
-                                    </div>
-                                    <Pagination>
-                                        <PaginationContent>
-                                            <PaginationItem>
-                                                <PaginationPrevious
-                                                    onClick={() => handlePageChange(page - 1)}
-                                                    className={
-                                                        page === 0
-                                                            ? "pointer-events-none opacity-50"
-                                                            : "cursor-pointer"
-                                                    }
-                                                />
-                                            </PaginationItem>
-                                            {Array.from(
-                                                {
-                                                    length: Math.min(5, totalPages),
-                                                },
-                                                (_, index) => {
-                                                    let pageNum = index;
-                                                    if (totalPages > 5) {
-                                                        if (page < 2) {
-                                                            pageNum = index;
-                                                        } else if (page > totalPages - 3) {
-                                                            pageNum = totalPages - 5 + index;
-                                                        } else {
-                                                            pageNum = page - 2 + index;
-                                                        }
-                                                    }
-                                                    return (
-                                                        <PaginationItem key={pageNum}>
-                                                            <PaginationLink
-                                                                onClick={() => handlePageChange(pageNum)}
-                                                                isActive={page === pageNum}
-                                                            >
-                                                                {pageNum + 1}
-                                                            </PaginationLink>
-                                                        </PaginationItem>
-                                                    );
-                                                }
-                                            )}
-                                            <PaginationItem>
-                                                <PaginationNext
-                                                    onClick={() => handlePageChange(page + 1)}
-                                                    className={
-                                                        page >= totalPages - 1
-                                                            ? "pointer-events-none opacity-50"
-                                                            : "cursor-pointer"
-                                                    }
-                                                />
-                                            </PaginationItem>
-                                        </PaginationContent>
-                                    </Pagination>
-                                </div>
-                            )}
-                        </>
-                    )}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
+
+            {/* Paginazione */}
+            {totalPages > 0 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div className="text-sm text-muted-foreground">
+                        Mostrati <span className="font-medium">{condomini.length}</span> di{" "}
+                        <span className="font-medium">{totalElements}</span> condomini
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page - 1)}
+                            disabled={page === 0}
+                            className="gap-1"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                            <span className="hidden sm:inline">Precedente</span>
+                        </Button>
+                        <span className="text-sm px-2 whitespace-nowrap">
+                            Pagina <span className="font-medium">{page + 1}</span> di{" "}
+                            <span className="font-medium">{totalPages}</span>
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePageChange(page + 1)}
+                            disabled={page >= totalPages - 1}
+                            className="gap-1"
+                        >
+                            <span className="hidden sm:inline">Successiva</span>
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Label className="text-xs whitespace-nowrap">
+                            Righe per pagina:
+                        </Label>
+                        <Select value={String(size)} onValueChange={handleSizeChange}>
+                            <SelectTrigger className="h-8 w-20">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="5">5</SelectItem>
+                                <SelectItem value="10">10</SelectItem>
+                                <SelectItem value="20">20</SelectItem>
+                                <SelectItem value="50">50</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+            )}
 
             {/* Dialog di conferma eliminazione */}
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -608,20 +542,23 @@ export default function AdminCondominiListPage() {
                             variant="destructive"
                             onClick={handleConfirmDelete}
                             disabled={isDeleting || deleteInputValue !== deleteTargetName || !deleteTargetId}
-                            className="min-w-[100px]"
+                            className="min-w-[100px] gap-2"
                         >
                             {isDeleting ? (
                                 <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin" />
                                     Eliminazione...
                                 </>
                             ) : (
-                                "Elimina condominio"
+                                <>
+                                    <Trash2 className="h-4 w-4" />
+                                    Elimina
+                                </>
                             )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </section>
+        </div>
     );
 }

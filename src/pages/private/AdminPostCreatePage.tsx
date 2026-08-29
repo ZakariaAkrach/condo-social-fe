@@ -1,5 +1,5 @@
 // src/pages/private/AdminPostCreatePage.tsx
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   Loader2,
@@ -13,19 +13,20 @@ import {
   BarChart3,
   Bold,
   Italic,
-  List,
-  ListOrdered,
-  Type,
-  Heading1,
-  Heading2,
-  Heading3,
   FolderOpen,
+  Pencil,
+  Send,
+  FileText,
+  Sparkles,
+  Underline,
+  Undo,
+  Redo,
+  Strikethrough,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -46,7 +47,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -65,6 +65,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 import { postAdminApi, type CreatePostRequest } from "@/app/api/postAdmin";
 import { documentAdminApi } from "@/app/api/documentAdmin";
 
@@ -82,69 +83,18 @@ interface AvailableDocument {
   size: number;
 }
 
-// Funzione di sanitizzazione HTML
-const sanitizeHtml = (html: string): string => {
-  const temp = document.createElement('div');
-  temp.textContent = html;
-  return temp.innerHTML;
-};
-
-// Funzione per convertire markdown a HTML con sanitizzazione
-const renderMarkdownToHtml = (text: string): string => {
-  if (!text) return "Nessun contenuto da visualizzare in anteprima";
-
-  const sanitized = sanitizeHtml(text);
-
-  let html = sanitized
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, url) => {
-      const safeText = sanitizeHtml(linkText);
-      const safeUrl = sanitizeHtml(url);
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeText}</a>`;
-    })
-    .replace(/\*\*(.*?)\*\*/g, (match, content) => {
-      return `<strong>${sanitizeHtml(content)}</strong>`;
-    })
-    .replace(/_(.*?)_/g, (match, content) => {
-      return `<em>${sanitizeHtml(content)}</em>`;
-    })
-    .replace(/^### (.*)$/gm, (match, content) => {
-      return `<h3>${sanitizeHtml(content)}</h3>`;
-    })
-    .replace(/^## (.*)$/gm, (match, content) => {
-      return `<h2>${sanitizeHtml(content)}</h2>`;
-    })
-    .replace(/^# (.*)$/gm, (match, content) => {
-      return `<h1>${sanitizeHtml(content)}</h1>`;
-    })
-    .replace(/^- (.*)$/gm, (match, content) => {
-      return `<li>${sanitizeHtml(content)}</li>`;
-    })
-    .replace(/^\d+\. (.*)$/gm, (match, content) => {
-      return `<li>${sanitizeHtml(content)}</li>`;
-    })
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br />');
-
-  if (!html.startsWith('<')) {
-    html = `<p>${html}</p>`;
-  }
-
-  html = html.replace(/(<li>.*?<\/li>)/g, '<ul>$1</ul>');
-
-  return html;
-};
-
 export default function AdminPostCreatePage() {
   const navigate = useNavigate();
   const { condominiumId } = useParams<{ condominiumId: string }>();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [bodyHtml, setBodyHtml] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "DRAFT">("DRAFT");
+  const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
 
   const [hasPoll, setHasPoll] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
@@ -163,7 +113,6 @@ export default function AdminPostCreatePage() {
   const [documentsSearch, setDocumentsSearch] = useState("");
   const [documentsPage, setDocumentsPage] = useState(0);
   const [documentsTotalPages, setDocumentsTotalPages] = useState(0);
-  const [documentsTotalElements, setDocumentsTotalElements] = useState(0);
   const [tempSelectedIds, setTempSelectedIds] = useState<Set<string>>(new Set());
 
   // ========== FUNZIONI PER IL SONDAGGIO ==========
@@ -189,6 +138,88 @@ export default function AdminPostCreatePage() {
   };
   // =============================================
 
+  // ========== EDITOR WYSIWYG ==========
+  const updateActiveFormats = useCallback(() => {
+    const formats = new Set<string>();
+    
+    if (document.queryCommandState('bold')) formats.add('bold');
+    if (document.queryCommandState('italic')) formats.add('italic');
+    if (document.queryCommandState('underline')) formats.add('underline');
+    if (document.queryCommandState('strikeThrough')) formats.add('strikeThrough');
+    if (document.queryCommandState('insertUnorderedList')) formats.add('insertUnorderedList');
+    if (document.queryCommandState('insertOrderedList')) formats.add('insertOrderedList');
+    if (document.queryCommandState('justifyLeft')) formats.add('justifyLeft');
+    if (document.queryCommandState('justifyCenter')) formats.add('justifyCenter');
+    if (document.queryCommandState('justifyRight')) formats.add('justifyRight');
+    
+    const block = document.queryCommandValue('formatBlock');
+    if (block) {
+      formats.add(block.toLowerCase());
+    }
+    
+    setActiveFormats(formats);
+  }, []);
+
+  const execCommand = useCallback((command: string, value: string = "") => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    
+    editor.focus();
+    document.execCommand(command, false, value);
+    
+    setBodyHtml(editor.innerHTML);
+    updateActiveFormats();
+  }, [updateActiveFormats]);
+
+  const handleEditorInput = useCallback(() => {
+    const editor = editorRef.current;
+    if (editor) {
+      setBodyHtml(editor.innerHTML);
+      updateActiveFormats();
+    }
+  }, [updateActiveFormats]);
+
+  const handleEditorKeyUp = useCallback(() => {
+    updateActiveFormats();
+  }, [updateActiveFormats]);
+
+  const handleEditorMouseUp = useCallback(() => {
+    updateActiveFormats();
+  }, [updateActiveFormats]);
+
+  const handleEditorPaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
+    }
+    
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'b') {
+        e.preventDefault();
+        execCommand('bold');
+      } else if (e.key === 'i') {
+        e.preventDefault();
+        execCommand('italic');
+      } else if (e.key === 'u') {
+        e.preventDefault();
+        execCommand('underline');
+      } else if (e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        execCommand('undo');
+      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        execCommand('redo');
+      }
+    }
+  }, [execCommand]);
+  // =============================================
+
   // Fetch documenti disponibili
   const fetchAvailableDocuments = useCallback(async () => {
     if (!condominiumId) return;
@@ -208,8 +239,6 @@ export default function AdminPostCreatePage() {
       const data = response.data || [];
       const activeDocs = data.filter((doc: any) => doc.status === "ACTIVE");
       setAvailableDocuments(activeDocs);
-      setDocumentsTotalElements(response.totalElements || 0);
-      setDocumentsTotalPages(response.totalPages || 0);
     } catch (err: any) {
       console.error("Errore nel caricamento dei documenti", err);
       toast.error("Errore nel caricamento dei documenti disponibili");
@@ -251,123 +280,6 @@ export default function AdminPostCreatePage() {
     setSelectedDocuments(prev => prev.filter(d => d.id !== docId));
   };
 
-  // Funzioni per la formattazione del testo
-  const toggleFormatting = useCallback((format: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = body.substring(start, end);
-    
-    let prefix = "";
-    let suffix = "";
-    let cursorOffset = 0;
-
-    switch (format) {
-      case 'bold':
-        prefix = '**';
-        suffix = '**';
-        cursorOffset = 2;
-        break;
-      case 'italic':
-        prefix = '_';
-        suffix = '_';
-        cursorOffset = 1;
-        break;
-      case 'heading1':
-        prefix = '\n# ';
-        suffix = '\n';
-        cursorOffset = 3;
-        break;
-      case 'heading2':
-        prefix = '\n## ';
-        suffix = '\n';
-        cursorOffset = 4;
-        break;
-      case 'heading3':
-        prefix = '\n### ';
-        suffix = '\n';
-        cursorOffset = 5;
-        break;
-      case 'list':
-        prefix = '\n- ';
-        suffix = '\n';
-        cursorOffset = 3;
-        break;
-      case 'numbered':
-        prefix = '\n1. ';
-        suffix = '\n';
-        cursorOffset = 4;
-        break;
-      default:
-        return;
-    }
-
-    if (selectedText) {
-      const isFormatted = selectedText.startsWith(prefix) && selectedText.endsWith(suffix);
-      
-      if (isFormatted) {
-        const innerText = selectedText.slice(prefix.length, -suffix.length);
-        const newText = body.substring(0, start) + innerText + body.substring(end);
-        setBody(newText);
-        setTimeout(() => {
-          textarea.focus();
-          const newPosition = start + innerText.length;
-          textarea.setSelectionRange(newPosition, newPosition);
-        }, 10);
-        return;
-      }
-    }
-
-    if (selectedText) {
-      const newText = body.substring(0, start) + prefix + selectedText + suffix + body.substring(end);
-      setBody(newText);
-      setTimeout(() => {
-        textarea.focus();
-        const newPosition = start + prefix.length + selectedText.length + suffix.length;
-        textarea.setSelectionRange(newPosition, newPosition);
-      }, 10);
-    } else {
-      const newText = body.substring(0, start) + prefix + suffix + body.substring(end);
-      setBody(newText);
-      setTimeout(() => {
-        textarea.focus();
-        const newPosition = start + prefix.length;
-        textarea.setSelectionRange(newPosition, newPosition);
-      }, 10);
-    }
-  }, [body]);
-
-  const insertLink = useCallback(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = body.substring(start, end);
-
-    const url = window.prompt('Inserisci il link URL:', 'https://');
-    if (!url) return;
-
-    let newText;
-    let cursorPos;
-
-    if (selectedText) {
-      newText = body.substring(0, start) + `[${selectedText}](${url})` + body.substring(end);
-      cursorPos = start + `[${selectedText}](${url})`.length;
-    } else {
-      newText = body.substring(0, start) + `[Testo del link](${url})` + body.substring(end);
-      cursorPos = start + 2;
-    }
-
-    setBody(newText);
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(cursorPos, cursorPos);
-    }, 10);
-  }, [body]);
-
   const validateForm = (): boolean => {
     if (!title.trim()) {
       toast.error("Il titolo è obbligatorio");
@@ -377,7 +289,8 @@ export default function AdminPostCreatePage() {
       toast.error("Il titolo non può superare i 255 caratteri");
       return false;
     }
-    if (!body.trim()) {
+    const text = editorRef.current?.textContent || "";
+    if (!text.trim()) {
       toast.error("Il contenuto è obbligatorio");
       return false;
     }
@@ -407,11 +320,12 @@ export default function AdminPostCreatePage() {
     setError(null);
 
     try {
-      const sanitizedBody = sanitizeHtml(body.trim());
+      const editor = editorRef.current;
+      const bodyContent = editor?.innerHTML || "";
       
       const data: CreatePostRequest = {
-        title: sanitizeHtml(title.trim()),
-        body: sanitizedBody,
+        title: title.trim(),
+        body: bodyContent,
         status,
       };
 
@@ -421,16 +335,16 @@ export default function AdminPostCreatePage() {
 
       if (hasPoll) {
         data.poll = {
-          question: sanitizeHtml(pollQuestion.trim()),
+          question: pollQuestion.trim(),
           optionTexts: pollOptions
             .filter((opt) => opt.text.trim())
-            .map((opt) => sanitizeHtml(opt.text.trim())),
+            .map((opt) => opt.text.trim()),
         };
       }
 
       await postAdminApi.createPost(condominiumId, data);
       toast.success("Post creato con successo!");
-      navigate(`/admin/condomini/${condominiumId}/posts`);
+      navigate(`/admin/condomini/${condominiumId}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message || "Errore durante la creazione del post";
       setError(msg);
@@ -444,7 +358,7 @@ export default function AdminPostCreatePage() {
     navigate(`/admin/condomini/${condominiumId}/posts`);
   };
 
-  const isBodyEmpty = !body || body.trim() === "";
+  const isBodyEmpty = !editorRef.current?.textContent?.trim();
 
   // Helper per formattare la dimensione
   const formatSize = (bytes: number) => {
@@ -455,21 +369,40 @@ export default function AdminPostCreatePage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
+  const FormatButton = ({ icon: Icon, label, onClick, active = false }: { icon: any, label: string, onClick: () => void, active?: boolean }) => (
+    <Button
+      type="button"
+      variant={active ? "secondary" : "ghost"}
+      size="sm"
+      className={`h-8 w-8 p-0 ${active ? 'bg-primary/20 text-primary hover:bg-primary/30' : ''}`}
+      onClick={onClick}
+      title={label}
+    >
+      <Icon className="h-4 w-4" />
+    </Button>
+  );
+
+  const getCharCount = () => {
+    return editorRef.current?.textContent?.length || 0;
+  };
+
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-5xl">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={goBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Torna indietro
-          </Button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Nuovo Post</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Nuova Comunicazione</h1>
             <p className="text-sm text-muted-foreground">
               Crea un nuovo annuncio per il condominio
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={status === "ACTIVE" ? "default" : "secondary"} className="gap-1">
+            {status === "ACTIVE" ? <Send className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+            {status === "ACTIVE" ? "Pubblicato" : "Bozza"}
+          </Badge>
         </div>
       </div>
 
@@ -484,203 +417,149 @@ export default function AdminPostCreatePage() {
       <div className="space-y-6">
         {/* Informazioni base */}
         <Card>
-          <CardHeader>
-            <CardTitle>Informazioni del Post</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Contenuto del Post
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="title" className="required">
-                Titolo
+              <Label htmlFor="title" className="text-sm font-medium">
+                Titolo <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Inserisci il titolo del post..."
+                placeholder="Inserisci un titolo chiaro e accattivante..."
                 maxLength={255}
-                className="text-lg font-medium"
+                className="text-base"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Il titolo deve essere accattivante e chiaro</span>
+                <span>Il titolo deve essere chiaro e descrittivo</span>
                 <span>{title.length}/255</span>
               </div>
             </div>
 
             <Separator />
 
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label className="required">Contenuto</Label>
-                <div className="flex flex-wrap gap-1">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => toggleFormatting('bold')}
-                    title="Grassetto (doppio click per disattivare)"
-                  >
-                    <Bold className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => toggleFormatting('italic')}
-                    title="Corsivo (doppio click per disattivare)"
-                  >
-                    <Italic className="h-3 w-3" />
-                  </Button>
-                  <Separator orientation="vertical" className="h-5" />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => toggleFormatting('heading1')}
-                    title="Titolo H1"
-                  >
-                    <Heading1 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => toggleFormatting('heading2')}
-                    title="Titolo H2"
-                  >
-                    <Heading2 className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => toggleFormatting('heading3')}
-                    title="Titolo H3"
-                  >
-                    <Heading3 className="h-3 w-3" />
-                  </Button>
-                  <Separator orientation="vertical" className="h-5" />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => toggleFormatting('list')}
-                    title="Lista puntata"
-                  >
-                    <List className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => toggleFormatting('numbered')}
-                    title="Lista numerata"
-                  >
-                    <ListOrdered className="h-3 w-3" />
-                  </Button>
-                  <Separator orientation="vertical" className="h-5" />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={insertLink}
-                    title="Inserisci link"
-                  >
-                    <Type className="h-3 w-3" />
-                    🔗
-                  </Button>
-                </div>
-              </div>
+            {/* Editor WYSIWYG con anteprima live */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">
+                Contenuto <span className="text-destructive">*</span>
+              </Label>
 
-              <div className="relative">
-                <Textarea
-                  ref={textareaRef}
-                  id="body-textarea"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder={`Scrivi il contenuto del post...
-
-**Testo in grassetto** (seleziona il testo e clicca B per formattare)
-*Testo in corsivo* (seleziona il testo e clicca I)
-
-# Titolo H1
-## Titolo H2
-### Titolo H3
-
-- Elemento lista
-1. Elemento numerato
-
-[Testo del link](https://esempio.it)`}
-                  rows={12}
-                  className="font-mono text-sm min-h-[300px]"
+              {/* Toolbar formattazione */}
+              <div className="flex flex-wrap items-center gap-1 p-2 rounded-lg bg-muted/50 border sticky top-0 z-10">
+                <FormatButton 
+                  icon={Undo} 
+                  label="Annulla (Ctrl+Z)" 
+                  onClick={() => execCommand('undo')} 
                 />
-                <div className="absolute bottom-2 right-2 text-xs text-muted-foreground bg-background/80 px-2 py-0.5 rounded">
-                  {body.length} caratteri
+                <FormatButton 
+                  icon={Redo} 
+                  label="Ripeti (Ctrl+Y)" 
+                  onClick={() => execCommand('redo')} 
+                />
+                <Separator orientation="vertical" className="h-5 mx-1" />
+                <FormatButton 
+                  icon={Bold} 
+                  label="Grassetto (Ctrl+B)" 
+                  onClick={() => execCommand('bold')} 
+                  active={activeFormats.has('bold')}
+                />
+                <FormatButton 
+                  icon={Italic} 
+                  label="Corsivo (Ctrl+I)" 
+                  onClick={() => execCommand('italic')} 
+                  active={activeFormats.has('italic')}
+                />
+                <FormatButton 
+                  icon={Underline} 
+                  label="Sottolineato (Ctrl+U)" 
+                  onClick={() => execCommand('underline')} 
+                  active={activeFormats.has('underline')}
+                />
+                <FormatButton 
+                  icon={Strikethrough} 
+                  label="Barrato" 
+                  onClick={() => execCommand('strikeThrough')} 
+                  active={activeFormats.has('strikeThrough')}
+                />
+              </div>
+
+              {/* Editor - mostra direttamente il contenuto formattato */}
+              <div className="relative">
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={handleEditorInput}
+                  onKeyUp={handleEditorKeyUp}
+                  onMouseUp={handleEditorMouseUp}
+                  onPaste={handleEditorPaste}
+                  onKeyDown={handleKeyDown}
+                  className="min-h-[300px] p-4 rounded-lg border bg-card text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/50 resize-y overflow-y-auto"
+                  style={{ 
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}
+                  data-placeholder="Scrivi il contenuto del post qui..."
+                />
+                <div className="absolute bottom-3 right-3 text-xs text-muted-foreground bg-background/90 backdrop-blur px-2 py-1 rounded-md border pointer-events-none">
+                  {getCharCount()} caratteri
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-                  Suggerimenti:
-                </span>
-                <Badge variant="outline" className="text-[10px]">Seleziona testo → clicca formato</Badge>
-                <Badge variant="outline" className="text-[10px]">Doppio click per rimuovere</Badge>
+              {/* Suggerimenti */}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg">
+                <span className="font-medium">💡 Suggerimenti:</span>
+                <span>Seleziona il testo e usa i pulsanti per formattare</span>
+                <span>•</span>
+                <span>Ctrl+B per grassetto</span>
+                <span>•</span>
+                <span>Ctrl+I per corsivo</span>
+                <span>•</span>
+                <span>Ctrl+U per sottolineato</span>
               </div>
-
-              {/* Anteprima live sanitizzata */}
-              {!isBodyEmpty && (
-                <div className="mt-3 p-4 rounded-lg border bg-muted/20">
-                  <h4 className="text-xs font-medium text-muted-foreground mb-2">📄 Anteprima:</h4>
-                  <div
-                    className="prose prose-sm dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: renderMarkdownToHtml(body) 
-                    }}
-                  />
-                </div>
-              )}
             </div>
 
             <Separator />
 
-            <div className="space-y-2">
-              <Label htmlFor="status">Stato di pubblicazione</Label>
-              <Select
-                value={status}
-                onValueChange={(val) => setStatus(val as "ACTIVE" | "DRAFT")}
-              >
-                <SelectTrigger id="status" className="w-full sm:w-[200px]">
-                  <SelectValue placeholder="Seleziona lo stato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DRAFT">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                      Bozza
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ACTIVE">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      Attivo
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex items-start gap-2 text-xs text-muted-foreground mt-1">
-                <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+            {/* Stato */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="status" className="text-sm font-medium">Stato di pubblicazione</Label>
+                <Select
+                  value={status}
+                  onValueChange={(val) => setStatus(val as "ACTIVE" | "DRAFT")}
+                >
+                  <SelectTrigger id="status" className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Seleziona lo stato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DRAFT">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                        Bozza
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="ACTIVE">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                        Pubblica subito
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg flex-1">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
                   {status === "DRAFT"
-                    ? "Il post sarà visibile solo agli amministratori. Puoi pubblicarlo in un secondo momento."
-                    : "Il post sarà visibile a tutti i residenti del condominio."}
+                    ? "Il post sarà salvato come bozza e visibile solo agli amministratori."
+                    : "Il post sarà immediatamente visibile a tutti i residenti del condominio."}
                 </div>
               </div>
             </div>
@@ -689,17 +568,20 @@ export default function AdminPostCreatePage() {
 
         {/* Sondaggio */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Sondaggio</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Sondaggio
+                </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Aggiungi un sondaggio al tuo post per raccogliere feedback
+                  Aggiungi un sondaggio per raccogliere feedback dai residenti
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <Label htmlFor="has-poll" className="text-sm font-normal cursor-pointer">
-                  Attiva sondaggio
+                  Attiva
                 </Label>
                 <Switch
                   id="has-poll"
@@ -709,11 +591,11 @@ export default function AdminPostCreatePage() {
               </div>
             </div>
           </CardHeader>
-          {hasPoll && (
+          {hasPoll ? (
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="poll-question" className="required">
-                  Domanda del sondaggio
+                <Label htmlFor="poll-question" className="text-sm font-medium">
+                  Domanda <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="poll-question"
@@ -725,11 +607,13 @@ export default function AdminPostCreatePage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="required">Opzioni di risposta</Label>
+                <Label className="text-sm font-medium">
+                  Opzioni di risposta <span className="text-destructive">*</span>
+                </Label>
                 <div className="space-y-2">
                   {pollOptions.map((option, index) => (
                     <div key={option.id} className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground text-xs font-medium">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
                         {String.fromCharCode(65 + index)}
                       </div>
                       <Input
@@ -745,6 +629,7 @@ export default function AdminPostCreatePage() {
                         size="icon"
                         className="h-8 w-8 shrink-0 hover:text-destructive"
                         onClick={() => handleRemovePollOption(option.id)}
+                        disabled={pollOptions.length <= 2}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -755,9 +640,9 @@ export default function AdminPostCreatePage() {
                   variant="outline"
                   size="sm"
                   onClick={handleAddPollOption}
-                  className="mt-2"
+                  className="mt-2 gap-2"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4" />
                   Aggiungi opzione
                 </Button>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -765,12 +650,11 @@ export default function AdminPostCreatePage() {
                 </p>
               </div>
             </CardContent>
-          )}
-          {!hasPoll && (
+          ) : (
             <CardContent>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted">
-                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/30 border border-dashed">
+                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-muted">
+                  <BarChart3 className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
                   <p className="text-sm font-medium">Nessun sondaggio attivo</p>
@@ -785,12 +669,15 @@ export default function AdminPostCreatePage() {
 
         {/* Documenti Allegati */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Documenti Allegati</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  Documenti Allegati
+                </CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Seleziona documenti già caricati nel condominio
+                  Allega documenti già caricati nel condominio
                 </p>
               </div>
               <Button
@@ -801,17 +688,20 @@ export default function AdminPostCreatePage() {
                 className="gap-2"
               >
                 <FolderOpen className="h-4 w-4" />
-                Seleziona documenti
+                Seleziona
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {selectedDocuments.length === 0 ? (
-              <div className="border-2 border-dashed rounded-lg p-8 text-center transition-colors hover:border-primary/50">
+              <div 
+                className="border-2 border-dashed rounded-lg p-6 text-center transition-colors hover:border-primary/50 cursor-pointer"
+                onClick={openDocumentDialog}
+              >
                 <FolderOpen className="h-10 w-10 mx-auto text-muted-foreground" />
                 <p className="text-sm font-medium mt-2">Nessun documento selezionato</p>
                 <p className="text-xs text-muted-foreground">
-                  Clicca su "Seleziona documenti" per allegare documenti esistenti
+                  Clicca per selezionare documenti da allegare
                 </p>
               </div>
             ) : (
@@ -819,10 +709,12 @@ export default function AdminPostCreatePage() {
                 {selectedDocuments.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center justify-between p-3 border rounded-lg bg-muted/30"
+                    className="flex items-center justify-between p-3 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <File className="h-4 w-4 text-primary flex-shrink-0" />
+                      <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10">
+                        <File className="h-5 w-5 text-primary" />
+                      </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{doc.originalName}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -839,8 +731,8 @@ export default function AdminPostCreatePage() {
                     </div>
                     <Button
                       variant="ghost"
-                      size="sm"
-                      className="hover:text-destructive flex-shrink-0"
+                      size="icon"
+                      className="h-8 w-8 hover:text-destructive flex-shrink-0"
                       onClick={() => removeDocument(doc.id)}
                     >
                       <X className="h-4 w-4" />
@@ -857,32 +749,37 @@ export default function AdminPostCreatePage() {
           <CardContent className="pt-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Riepilogo del post</p>
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Check className="h-4 w-4 text-primary" />
+                  Riepilogo del post
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant={status === "ACTIVE" ? "default" : "secondary"}>
-                    {status === "ACTIVE" ? "📢 Attivo" : "📝 Bozza"}
+                  <Badge variant={status === "ACTIVE" ? "default" : "secondary"} className="gap-1">
+                    {status === "ACTIVE" ? <Send className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
+                    {status === "ACTIVE" ? "Pubblicato" : "Bozza"}
                   </Badge>
                   {hasPoll && (
                     <Badge variant="outline" className="gap-1">
-                      📊 Sondaggio
-                      <span className="text-xs text-muted-foreground">
-                        ({pollOptions.filter(o => o.text.trim()).length} opzioni)
-                      </span>
+                      <BarChart3 className="h-3 w-3" />
+                      Sondaggio ({pollOptions.filter(o => o.text.trim()).length} opzioni)
                     </Badge>
                   )}
                   {selectedDocuments.length > 0 && (
                     <Badge variant="outline" className="gap-1">
-                      📎 {selectedDocuments.length} documenti
+                      <File className="h-3 w-3" />
+                      {selectedDocuments.length} documenti
                     </Badge>
                   )}
                   {title && (
                     <Badge variant="outline" className="gap-1">
-                      ✏️ {title.length} caratteri
+                      <FileText className="h-3 w-3" />
+                      {title.length} caratteri titolo
                     </Badge>
                   )}
                   {!isBodyEmpty && (
                     <Badge variant="outline" className="gap-1">
-                      📄 {body.length} caratteri
+                      <Pencil className="h-3 w-3" />
+                      {getCharCount()} caratteri contenuto
                     </Badge>
                   )}
                 </div>
@@ -891,22 +788,26 @@ export default function AdminPostCreatePage() {
                 <Button
                   variant="outline"
                   onClick={goBack}
-                  className="flex-1 md:flex-none"
+                  className="flex-1 md:flex-none gap-2"
                 >
+                  <X className="h-4 w-4" />
                   Annulla
                 </Button>
                 <Button
                   onClick={handleSubmit}
-                  disabled={loading || !title || isBodyEmpty}
-                  className="flex-1 md:flex-none"
+                  disabled={loading || !title.trim() || isBodyEmpty}
+                  className="flex-1 md:flex-none gap-2"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                       Creazione...
                     </>
                   ) : (
-                    "Pubblica Post"
+                    <>
+                      <Send className="h-4 w-4" />
+                      Pubblica Post
+                    </>
                   )}
                 </Button>
               </div>
@@ -945,15 +846,19 @@ export default function AdminPostCreatePage() {
                 setDocumentsPage(0);
                 fetchAvailableDocuments();
               }}
+              className="gap-2"
             >
+              <Search className="h-4 w-4" />
               Cerca
             </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto">
             {documentsLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
               </div>
             ) : availableDocuments.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
@@ -978,9 +883,9 @@ export default function AdminPostCreatePage() {
                       />
                     </TableHead>
                     <TableHead>Nome</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Versione</TableHead>
-                    <TableHead>Dimensione</TableHead>
+                    <TableHead className="hidden sm:table-cell">Tipo</TableHead>
+                    <TableHead className="hidden md:table-cell">Versione</TableHead>
+                    <TableHead className="hidden lg:table-cell">Dimensione</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -998,17 +903,17 @@ export default function AdminPostCreatePage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <File className="h-4 w-4 text-primary" />
-                          <span className="truncate max-w-[200px]">{doc.originalName}</span>
+                          <File className="h-4 w-4 text-primary shrink-0" />
+                          <span className="truncate max-w-[150px] sm:max-w-[250px]">{doc.originalName}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <Badge variant="outline" className="text-[10px]">
                           {doc.contentType}
                         </Badge>
                       </TableCell>
-                      <TableCell>v{doc.currentVersion}</TableCell>
-                      <TableCell>{formatSize(doc.size)}</TableCell>
+                      <TableCell className="hidden md:table-cell">v{doc.currentVersion}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{formatSize(doc.size)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1055,8 +960,8 @@ export default function AdminPostCreatePage() {
             <Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>
               Annulla
             </Button>
-            <Button onClick={confirmDocumentSelection}>
-              <Check className="h-4 w-4 mr-2" />
+            <Button onClick={confirmDocumentSelection} className="gap-2">
+              <Check className="h-4 w-4" />
               Conferma selezione
             </Button>
           </DialogFooter>

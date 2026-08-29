@@ -24,6 +24,7 @@ import {
   X,
   Globe,
   Lock,
+  ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -57,13 +58,21 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { documentAdminApi } from "@/app/api/documentAdmin";
 import { uploadFileToStorage } from "@/auth/uploadStorage";
-import { format, formatDistanceToNow, addDays, differenceInDays } from "date-fns";
+import { format, addDays, differenceInDays } from "date-fns";
 import { it } from "date-fns/locale";
 import { useNavigate, useParams } from "react-router";
 import { condominiumMemberApi, type FetchMembersResponseDto } from "@/app/api/condominiumMember";
 import { downloadFileFromStorage } from "@/auth/downloadFileFromStorage";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface DocumentDetail {
   id: string;
@@ -94,7 +103,7 @@ interface VisibilityEntry {
 }
 
 const roleMap: Record<string, string> = {
-  CONDO_ADMIN: "Amministratore Condominio",
+  CONDO_ADMIN: "Amministratore",
   SUB_ADMIN: "Sub Admin",
   CONDO_RESIDENT: "Residente",
 };
@@ -113,11 +122,9 @@ export default function DocumentDetailPage() {
 
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
-  const [versionsError, setVersionsError] = useState<string | null>(null);
 
   const [visibility, setVisibility] = useState<VisibilityEntry[]>([]);
   const [visibilityLoading, setVisibilityLoading] = useState(false);
-  const [visibilityError, setVisibilityError] = useState<string | null>(null);
 
   const [visibilityDialogOpen, setVisibilityDialogOpen] = useState(false);
   const [allMembers, setAllMembers] = useState<FetchMembersResponseDto[]>([]);
@@ -164,7 +171,6 @@ export default function DocumentDetailPage() {
         setIsPublicForCondominium(response.data.publicForCondominium);
       }
     } catch (err: any) {
-      console.error("Errore fetch dettaglio documento", err);
       const msg = err?.response?.data?.message || "Errore nel caricamento del documento";
       setError(msg);
       toast.error(msg);
@@ -176,7 +182,6 @@ export default function DocumentDetailPage() {
   const fetchVersions = useCallback(async () => {
     if (!condominiumId || !documentId) return;
     setVersionsLoading(true);
-    setVersionsError(null);
     try {
       const response = await documentAdminApi.fetchVersions(condominiumId, documentId, {
         page: 0,
@@ -184,13 +189,9 @@ export default function DocumentDetailPage() {
         sortBy: "version",
         ascending: false,
       });
-      const data = response.data || [];
-      setVersions(data);
+      setVersions(response.data || []);
     } catch (err: any) {
-      console.error("Errore fetch versioni", err);
-      const msg = err?.response?.data?.message || "Errore nel caricamento delle versioni";
-      setVersionsError(msg);
-      toast.error(msg);
+      toast.error("Errore nel caricamento delle versioni");
     } finally {
       setVersionsLoading(false);
     }
@@ -199,7 +200,6 @@ export default function DocumentDetailPage() {
   const fetchVisibility = useCallback(async () => {
     if (!condominiumId || !documentId) return;
     setVisibilityLoading(true);
-    setVisibilityError(null);
     try {
       const response = await documentAdminApi.fetchVisibility(condominiumId, documentId, {
         page: 0,
@@ -207,16 +207,12 @@ export default function DocumentDetailPage() {
         sortBy: "createdAt",
         ascending: true,
       });
-      const data = response.data || [];
-      setVisibility(data);
+      setVisibility(response.data || []);
       if (response.publicForCondominium !== undefined) {
         setIsPublicForCondominium(response.publicForCondominium);
       }
     } catch (err: any) {
-      console.error("Errore fetch visibilità", err);
-      const msg = err?.response?.data?.message || "Errore nel caricamento degli accessi";
-      setVisibilityError(msg);
-      toast.error(msg);
+      toast.error("Errore nel caricamento degli accessi");
     } finally {
       setVisibilityLoading(false);
     }
@@ -227,14 +223,10 @@ export default function DocumentDetailPage() {
     setMembersLoading(true);
     try {
       const response = await condominiumMemberApi.fetchMembers(
-        {
-          size: 1000,
-          page: 0,
-        },
+        { size: 1000, page: 0 },
         condominiumId
       );
-      const members = response.data || [];
-      setAllMembers(members);
+      setAllMembers(response.data || []);
     } catch (err) {
       toast.error("Errore nel caricamento dei membri");
     } finally {
@@ -267,31 +259,8 @@ export default function DocumentDetailPage() {
     });
   };
 
-  const toggleAllAdd = () => {
-    const visibleUserIds = new Set(visibility.map((v) => v.userId));
-    const notVisible = allMembers.filter((m) => !visibleUserIds.has(m.id));
-    if (selectedToAdd.size === notVisible.length) {
-      setSelectedToAdd(new Set());
-    } else {
-      setSelectedToAdd(new Set(notVisible.map((m) => m.id)));
-    }
-  };
-
-  const toggleAllRemove = () => {
-    const visibleUserIds = new Set(visibility.map((v) => v.userId));
-    const visibleMembers = allMembers.filter(
-      (m) => visibleUserIds.has(m.id) && m.role !== "CONDO_ADMIN"
-    );
-    if (selectedToRemove.size === visibleMembers.length) {
-      setSelectedToRemove(new Set());
-    } else {
-      setSelectedToRemove(new Set(visibleMembers.map((m) => m.id)));
-    }
-  };
-
   const handleTogglePublic = async () => {
     if (!condominiumId || !documentId) return;
-    
     const newValue = !isPublicForCondominium;
     setActionLoading(true);
     try {
@@ -301,11 +270,7 @@ export default function DocumentDetailPage() {
         isPublicForCondominium: newValue,
       });
       setIsPublicForCondominium(newValue);
-      toast.success(
-        newValue 
-          ? "Documento reso pubblico per tutto il condominio" 
-          : "Documento reso privato"
-      );
+      toast.success(newValue ? "Documento reso pubblico" : "Documento reso privato");
       await fetchVisibility();
       await fetchDetail();
     } catch (err: any) {
@@ -317,20 +282,15 @@ export default function DocumentDetailPage() {
 
   const handleSaveVisibility = async () => {
     if (!condominiumId || !documentId) return;
-
-    const userIdToMemberId = new Map(
-      allMembers.map((m) => [m.id, m.memberId])
-    );
-
+    const userIdToMemberId = new Map(allMembers.map((m) => [m.id, m.memberId]));
     const addMemberIds = Array.from(selectedToAdd)
       .map((userId) => userIdToMemberId.get(userId))
       .filter((id): id is string => id !== undefined);
-
-    const removeUserIds = Array.from(selectedToRemove).filter((userId) => {
-      const member = allMembers.find((m) => m.id === userId);
-      return member && member.role !== "CONDO_ADMIN";
-    });
-    const removeMemberIds = removeUserIds
+    const removeMemberIds = Array.from(selectedToRemove)
+      .filter((userId) => {
+        const member = allMembers.find((m) => m.id === userId);
+        return member && member.role !== "CONDO_ADMIN";
+      })
       .map((userId) => userIdToMemberId.get(userId))
       .filter((id): id is string => id !== undefined);
 
@@ -359,10 +319,7 @@ export default function DocumentDetailPage() {
   };
 
   useEffect(() => {
-    const loadAll = async () => {
-      await fetchDetail();
-    };
-    loadAll();
+    fetchDetail();
   }, [fetchDetail]);
 
   useEffect(() => {
@@ -378,7 +335,7 @@ export default function DocumentDetailPage() {
     await fetchVersions();
     await fetchVisibility();
     setRefreshing(false);
-    toast.info("Dettaglio aggiornato");
+    toast.success("Dettaglio aggiornato");
   };
 
   const formatSize = (bytes: number) => {
@@ -398,55 +355,31 @@ export default function DocumentDetailPage() {
   };
 
   const handleDownload = async (versionId?: string) => {
-    if (!condominiumId || !documentId) {
-      toast.error("Dati mancanti per il download");
-      return;
-    }
-
+    if (!condominiumId || !documentId) return;
     setDownloading(true);
     try {
       let requestedVersion: number | undefined = undefined;
-
       if (versionId) {
         const version = versions.find((v) => v.idVersion === versionId);
-        if (version) {
-          requestedVersion = version.version;
-        } else {
-          toast.error("Versione non trovata");
-          return;
-        }
+        if (version) requestedVersion = version.version;
       }
-
-      const response = await documentAdminApi.download(
-        condominiumId,
-        documentId,
-        requestedVersion
-      );
-
+      const response = await documentAdminApi.download(condominiumId, documentId, requestedVersion);
       const downloadUrl = response.data.downloadURL;
-
       if (!downloadUrl) {
         toast.error("URL di download non disponibile");
         return;
       }
-
       const blob = await downloadFileFromStorage(downloadUrl);
-
       const blobUrl = URL.createObjectURL(blob);
-
       const link = window.document.createElement("a");
       link.href = blobUrl;
       link.download = response.data.fileName;
-
       window.document.body.appendChild(link);
       link.click();
       link.remove();
-
       URL.revokeObjectURL(blobUrl);
-
       toast.success("Download completato");
     } catch (error: any) {
-      console.error("Errore durante il download", error);
       toast.error(error?.message || "Errore durante il download");
     } finally {
       setDownloading(false);
@@ -457,16 +390,8 @@ export default function DocumentDetailPage() {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
-      const nameWithoutExtension = file.name.replace(/\.[^.]+$/, '');
-      setVersionName(nameWithoutExtension);
+      setVersionName(file.name.replace(/\.[^.]+$/, ''));
     }
-  };
-
-  const resetVersionForm = () => {
-    setSelectedFile(null);
-    setVersionName("");
-    setUploadStep("idle");
-    setIsUploadingVersion(false);
   };
 
   const handleUploadNewVersion = async () => {
@@ -477,43 +402,30 @@ export default function DocumentDetailPage() {
       const file = selectedFile;
       const extension = file.name.split(".").pop() || "";
       const finalName = versionName.trim() || file.name;
-
       const payload = {
         originalFileName: finalName,
         size: file.size,
         contentType: file.type || "application/octet-stream",
         extension,
       };
-
       const response = await documentAdminApi.addNewVersion(condominiumId, documentId, payload);
       const { uploadUrl, documentVersionId } = response.data;
-
       setUploadStep("uploading-to-storage");
       await uploadFileToStorage(file, uploadUrl);
-
       setUploadStep("confirming");
       await documentAdminApi.confirmUpload(condominiumId, documentVersionId);
-
       toast.success("Nuova versione caricata con successo!");
-      resetVersionForm();
       setNewVersionDialogOpen(false);
+      setSelectedFile(null);
+      setVersionName("");
       await fetchDetail();
       await fetchVersions();
     } catch (error: any) {
-      console.error("Errore durante l'upload della nuova versione", error);
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Si è verificato un errore. Riprova più tardi.";
-      toast.error(`Errore: ${errorMsg}`);
-      setUploadStep("idle");
+      toast.error(error?.response?.data?.message || "Errore durante l'upload");
     } finally {
       setIsUploadingVersion(false);
+      setUploadStep("idle");
     }
-  };
-
-  const openDeleteDialog = () => {
-    setDeleteDialog({ open: true, type: "program" });
   };
 
   const handleDeleteAction = async () => {
@@ -538,11 +450,6 @@ export default function DocumentDetailPage() {
 
   const handleStatusChange = async (newStatus: "DRAFT" | "ACTIVE") => {
     if (!condominiumId || !documentId || !document) return;
-    if (newStatus === document.status) {
-      toast.info("Lo stato è già impostato su " + newStatus);
-      setStatusDialogOpen(false);
-      return;
-    }
     setActionLoading(true);
     try {
       await documentAdminApi.changeStatus(condominiumId, documentId, newStatus);
@@ -587,42 +494,24 @@ export default function DocumentDetailPage() {
     return format(deletionDate, "dd MMM yyyy HH:mm", { locale: it });
   };
 
-  const versionCount = versions.length > 0 ? versions.length : (document?.versioningEnabled ? 0 : 1);
-  const versionsToShow = versions;
-
   const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
   const getAvatarColor = (name: string) => {
-    const colors = [
-      "bg-blue-500",
-      "bg-purple-500",
-      "bg-green-500",
-      "bg-orange-500",
-      "bg-pink-500",
-      "bg-indigo-500",
-      "bg-rose-500",
-      "bg-cyan-500",
-    ];
-    const index = name.length % colors.length;
-    return colors[index];
+    const colors = ["bg-blue-500", "bg-purple-500", "bg-green-500", "bg-orange-500", "bg-pink-500", "bg-indigo-500", "bg-rose-500", "bg-cyan-500"];
+    return colors[name.length % colors.length];
   };
 
-  const StatusBadge = ({ status, size = "default" }: { status: string; size?: "sm" | "default" }) => {
+  const StatusBadge = ({ status }: { status: string }) => {
     const config = {
-      ACTIVE: { variant: "default" as const, icon: <CheckCircle className="h-3 w-3 mr-1" /> },
-      DRAFT: { variant: "secondary" as const, icon: <EyeOff className="h-3 w-3 mr-1" /> },
-      DELETED: { variant: "destructive" as const, icon: <Archive className="h-3 w-3 mr-1" /> },
+      ACTIVE: { variant: "default" as const, icon: <CheckCircle className="h-3 w-3" /> },
+      DRAFT: { variant: "secondary" as const, icon: <EyeOff className="h-3 w-3" /> },
+      DELETED: { variant: "destructive" as const, icon: <Archive className="h-3 w-3" /> },
     };
     const { variant, icon } = config[status as keyof typeof config] || config.DRAFT;
     return (
-      <Badge variant={variant} className={`flex items-center gap-0.5 ${size === "sm" ? "text-xs px-2 py-0" : ""}`}>
+      <Badge variant={variant} className="gap-1">
         {icon}
         {status === "ACTIVE" ? "Attivo" : status === "DRAFT" ? "Bozza" : "Eliminato"}
       </Badge>
@@ -631,23 +520,30 @@ export default function DocumentDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col justify-center items-center h-96 gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-muted-foreground">Caricamento dettaglio documento...</p>
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-full" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-6">
+            <Skeleton className="h-64 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (error || !document) {
     return (
-      <div className="p-6 text-center max-w-md mx-auto">
-        <div className="mb-4 text-destructive">
-          <Info className="h-12 w-12 mx-auto" />
-        </div>
-        <h3 className="text-lg font-semibold mb-2">Impossibile caricare il documento</h3>
-        <p className="text-muted-foreground mb-4">{error || "Documento non trovato"}</p>
-        <Button variant="outline" onClick={goBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
+      <div className="text-center py-12">
+        <Info className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+        <p className="text-muted-foreground font-medium mb-4">{error || "Documento non trovato"}</p>
+        <Button variant="outline" onClick={goBack} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
           Torna indietro
         </Button>
       </div>
@@ -655,365 +551,386 @@ export default function DocumentDetailPage() {
   }
 
   const isDeleted = document.status === "DELETED";
+  const versionCount = versions.length > 0 ? versions.length : (document.versioningEnabled ? 0 : 1);
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-5xl">
+    <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-8xl">
       {isDeleted && (
         <Alert className="border-orange-500 bg-orange-50 text-orange-800 dark:bg-orange-950/30 dark:border-orange-700 dark:text-orange-300">
           <Timer className="h-4 w-4" />
           <AlertTitle>Documento nel cestino</AlertTitle>
           <AlertDescription>
-            Questo documento verrà eliminato definitivamente il{" "}
-            <strong>{getDeletionDate()}</strong> (tra {getDeletionCountdown()}).
+            Verrà eliminato definitivamente il <strong>{getDeletionDate()}</strong> (tra {getDeletionCountdown()}).
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={goBack} className="shrink-0">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold truncate max-w-[180px] md:max-w-[300px]">
-              {document.id.slice(0, 8)}...
-            </h1>
-            <button
-              className="focus:outline-none"
-              onClick={() => setStatusDialogOpen(true)}
-            >
-              <StatusBadge status={document.status} />
-            </button>
-          </div>
-        </div>
+      {/* Header */}
+      <div className="flex flex-col gap-4">
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button size="sm" onClick={() => handleDownload()} disabled={downloading}>
-            {downloading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4 mr-2" />
-            )}
-            Scarica
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {!isDeleted ? (
-                <>
-                  <DropdownMenuItem onClick={openDeleteDialog} className="gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    Elimina / Programma
-                  </DropdownMenuItem>
-                </>
-              ) : (
-                <DropdownMenuItem onClick={() => setRestoreDialogOpen(true)} className="gap-2">
-                  <RotateCcw className="h-4 w-4" />
-                  Ripristina
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <GitBranch className="h-4 w-4" />
-          Versioni: {versionCount}
-        </span>
-        <Separator orientation="vertical" className="h-4" />
-        <span className="flex items-center gap-1">
-          <HardDrive className="h-4 w-4" />
-          Corrente: v{document.currentVersion}
-        </span>
-        <Separator orientation="vertical" className="h-4" />
-        <span className="flex items-center gap-1">
-          <Users className="h-4 w-4" />
-          Accesso: {visibility.length} utenti
-        </span>
-        {isPublicForCondominium && (
-          <>
-            <Separator orientation="vertical" className="h-4" />
-            <span className="flex items-center gap-1 text-green-600">
-              <Globe className="h-4 w-4" />
-              Pubblico
-            </span>
-          </>
-        )}
-        <Separator orientation="vertical" className="h-4" />
-        <span className="flex items-center gap-1">
-          <Clock className="h-4 w-4" />
-          Creato: {formatDate(document.createdAt)}
-        </span>
-      </div>
-
-      <Separator />
-
-      <Tabs defaultValue="versions" className="w-full">
-        <TabsList className="w-full max-w-sm grid grid-cols-2">
-          <TabsTrigger value="versions" className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4" />
-            Versioni
-            <Badge variant="secondary" className="ml-1 text-xs">
-              {versionCount}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="permissions" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Accesso
-            {visibility.length > 0 && (
-              <Badge variant="secondary" className="ml-1 text-xs">
-                {visibility.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="versions" className="space-y-4 pt-4">
-          {document.versioningEnabled && !isDeleted && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1"
-              onClick={() => setNewVersionDialogOpen(true)}
-            >
-              <Upload className="h-4 w-4" />
-              Carica nuova versione
-            </Button>
-          )}
-          {versionsLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-primary/10 p-2 mt-1">
+              <File className="h-5 w-5 text-primary" />
             </div>
-          ) : versionsError ? (
-            <div className="text-destructive text-center py-4">{versionsError}</div>
-          ) : versionsToShow.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <GitBranch className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">Nessuna versione disponibile</p>
-              <p className="text-sm">Carica una nuova versione per visualizzarla qui.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {versionsToShow.map((v) => {
-                const isCurrent = v.version === document.currentVersion;
-                const isOnlyVersion = !document.versioningEnabled && versionsToShow.length === 1;
-                return (
-                  <div
-                    key={v.idVersion}
-                    className={`flex items-center justify-between p-4 rounded-lg border transition-all ${isCurrent
-                      ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
-                      : "bg-card hover:bg-muted/30"
-                      }`}
-                  >
-                    <div className="flex items-center gap-4 min-w-0 flex-1">
-                      <div className="flex-shrink-0">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${isCurrent
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
-                            }`}
-                        >
-                          v{v.version}
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium truncate">{v.originalName}</span>
-                          {isCurrent && (
-                            <Badge variant="default" className="text-[10px] px-2 py-0">
-                              {isOnlyVersion ? "Unica versione" : "Corrente"}
-                            </Badge>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            {formatSize(v.size)}
-                          </span>
-                          <Badge variant="outline" className="text-[10px] px-2 py-0">
-                            {v.contentType}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                          <span className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {v.uploadedBy}
-                          </span>
-                          <span>•</span>
-                          <span>{formatDate(v.createdAt)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDownload(v.idVersion)}
-                      disabled={downloading}
-                      className="flex-shrink-0"
-                    >
-                      {downloading ? (
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                      ) : (
-                        <Download className="h-4 w-4 mr-1" />
-                      )}
-                      <span className="text-xs">Scarica</span>
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* SCHEDA ACCESSO CON AVVISO INFORMATIVO E TOGGLE PUBLICO/PRIVATO */}
-        <TabsContent value="permissions" className="space-y-4 pt-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium">Utenti con accesso</h3>
-            <Button size="sm" variant="outline" onClick={handleOpenVisibilityDialog}>
-              <Users className="h-4 w-4 mr-2" />
-              Gestisci accesso
-            </Button>
-          </div>
-
-          {/* Toggle Pubblico/Privato */}
-          <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-            <div className="flex items-center gap-3">
-              {isPublicForCondominium ? (
-                <Globe className="h-5 w-5 text-green-600" />
-              ) : (
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              )}
-              <div>
-                <p className="text-sm font-medium">
-                  {isPublicForCondominium ? "📢 Pubblico per tutto il condominio" : "🔒 Visibilità limitata"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {isPublicForCondominium 
-                    ? "Tutti i membri del condominio possono vedere questo documento" 
-                    : "Solo gli utenti selezionati possono vedere questo documento"}
-                </p>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold">
+                {versionsLoading ? (
+                  <Skeleton className="h-7 w-48 sm:w-64" />
+                ) : versions.length > 0 ? (
+                  versions[versions.length - 1].originalName
+                ) : (
+                  "Documento"
+                )}
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  className="focus:outline-none"
+                  onClick={() => setStatusDialogOpen(true)}
+                  disabled={isDeleted}
+                >
+                  <StatusBadge status={document.status} />
+                </button>
               </div>
             </div>
-            <Button
-              variant={isPublicForCondominium ? "default" : "outline"}
-              size="sm"
-              onClick={handleTogglePublic}
-              disabled={actionLoading}
-              className="gap-2"
-            >
-              {actionLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isPublicForCondominium ? (
-                "Rendi privato"
-              ) : (
-                "Rendi pubblico"
-              )}
-            </Button>
           </div>
 
-          <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
-            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <AlertTitle className="text-blue-800 dark:text-blue-300 text-sm font-medium">
-              Accesso garantito
-            </AlertTitle>
-            <AlertDescription className="text-blue-700 dark:text-blue-400 text-xs">
-              Gli <strong>Amministratori di condominio</strong> e i <strong>Sub‑amministratori</strong> hanno sempre accesso a questo documento, anche se non compaiono nella lista qui sotto.
-            </AlertDescription>
-          </Alert>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              size="sm"
+              onClick={() => handleDownload()}
+              disabled={downloading}
+              className="gap-2"
+            >
+              {downloading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Scarica
+            </Button>
 
-          {visibilityLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : visibilityError ? (
-            <div className="text-destructive text-center py-4">{visibilityError}</div>
-          ) : visibility.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">Nessun utente aggiuntivo con accesso</p>
-              <p className="text-sm">
-                Solo gli amministratori e i sub‑amministratori possono visualizzare questo documento.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {visibility.map((item) => {
-                const fullName = `${item.firstName} ${item.lastName}`.trim();
-                const roleLabel = roleMap[item.role] || item.role;
-                const avatarColor = getAvatarColor(fullName || item.memberId);
-                return (
-                  <div
-                    key={item.memberId}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/30 transition-all"
+            {!isDeleted && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <MoreHorizontal className="h-4 w-4" />
+                    Azioni
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialog({ open: true, type: "program" })}
+                    className="gap-2"
                   >
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-10 w-10">
-                        <AvatarFallback className={`text-white ${avatarColor}`}>
-                          {getInitials(fullName || "Utente")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{fullName || "Utente senza nome"}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span className="text-xs text-muted-foreground">
-                            ID: {item.memberId.slice(0, 8)}
-                          </span>
-                          <span className="text-xs">•</span>
-                          <Badge
-                            variant={
-                              item.role === "ADMIN"
-                                ? "default"
-                                : item.role === "SUB_ADMIN"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                            className="text-[10px] px-2 py-0 h-5"
+                    <Archive className="h-4 w-4" />
+                    Sposta nel cestino
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialog({ open: true, type: "delete" })}
+                    className="gap-2 text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Elimina definitivamente
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {isDeleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRestoreDialogOpen(true)}
+                className="gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Ripristina
+              </Button>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Aggiorna
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Info rapide */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <GitBranch className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Versioni</p>
+                <p className="text-lg font-bold">{versionCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <HardDrive className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Versione corrente</p>
+                <p className="text-lg font-bold">v{document.currentVersion}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <Users className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Accesso</p>
+                <p className="text-lg font-bold">{visibility.length} utenti</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <Clock className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Creato</p>
+                <p className="text-sm font-medium">{formatDate(document.createdAt)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {isPublicForCondominium && (
+        <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
+          <Globe className="h-4 w-4" />
+          Documento pubblico per tutto il condominio
+        </div>
+      )}
+
+      {/* Tabs */}
+      <Card>
+        <CardContent className="p-4 sm:p-6">
+          <Tabs defaultValue="versions" className="w-full">
+            <TabsList className="w-full sm:w-auto flex-wrap h-auto gap-1">
+              <TabsTrigger value="versions" className="flex items-center gap-2 flex-1 sm:flex-none justify-center">
+                <GitBranch className="h-4 w-4" />
+                Versioni
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {versionCount}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="permissions" className="flex items-center gap-2 flex-1 sm:flex-none justify-center">
+                <Users className="h-4 w-4" />
+                Accesso
+                {visibility.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {visibility.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="versions" className="space-y-4 pt-4">
+              {document.versioningEnabled && !isDeleted && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setNewVersionDialogOpen(true)}
+                >
+                  <Upload className="h-4 w-4" />
+                  Carica nuova versione
+                </Button>
+              )}
+              {versionsLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : versions.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <GitBranch className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">Nessuna versione disponibile</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {versions.map((v) => {
+                    const isCurrent = v.version === document.currentVersion;
+                    return (
+                      <div
+                        key={v.idVersion}
+                        className={`flex items-center justify-between p-4 rounded-lg border transition-all ${isCurrent ? "bg-primary/5 border-primary/30" : "bg-card hover:bg-muted/30"
+                          }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div
+                            className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${isCurrent ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                              }`}
                           >
-                            {roleLabel}
-                          </Badge>
+                            v{v.version}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium truncate max-w-[150px] sm:max-w-[250px]">{v.originalName}</span>
+                              {isCurrent && (
+                                <Badge variant="default" className="text-[10px]">
+                                  Corrente
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                              <span>{formatSize(v.size)}</span>
+                              <span>•</span>
+                              <span>{formatDate(v.createdAt)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={() => handleDownload(v.idVersion)}
+                          disabled={downloading}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="permissions" className="space-y-4 pt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 className="text-sm font-medium">Utenti con accesso</h3>
+                <Button size="sm" variant="outline" onClick={handleOpenVisibilityDialog} className="gap-2">
+                  <Users className="h-4 w-4" />
+                  Gestisci accesso
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                <div className="flex items-center gap-3">
+                  {isPublicForCondominium ? (
+                    <Globe className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <Lock className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">
+                      {isPublicForCondominium ? "Pubblico per tutto il condominio" : "Visibilità limitata"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {isPublicForCondominium ? "Tutti i membri possono vedere questo documento" : "Solo gli utenti selezionati possono vedere questo documento"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant={isPublicForCondominium ? "default" : "outline"}
+                  size="sm"
+                  onClick={handleTogglePublic}
+                  disabled={actionLoading}
+                  className="gap-2 shrink-0"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isPublicForCondominium ? (
+                    "Rendi privato"
+                  ) : (
+                    "Rendi pubblico"
+                  )}
+                </Button>
+              </div>
+
+              <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AlertTitle className="text-blue-800 dark:text-blue-300 text-sm font-medium">
+                  Accesso garantito
+                </AlertTitle>
+                <AlertDescription className="text-blue-700 dark:text-blue-400 text-xs">
+                  Gli Amministratori e i Sub-amministratori hanno sempre accesso a questo documento.
+                </AlertDescription>
+              </Alert>
+
+              {visibilityLoading ? (
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : visibility.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">Nessun utente aggiuntivo con accesso</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {visibility.map((item) => {
+                    const fullName = `${item.firstName} ${item.lastName}`.trim();
+                    const roleLabel = roleMap[item.role] || item.role;
+                    return (
+                      <div
+                        key={item.memberId}
+                        className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/30 transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className={`text-white ${getAvatarColor(fullName)}`}>
+                              {getInitials(fullName || "Utente")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{fullName || "Utente senza nome"}</p>
+                            <Badge variant="outline" className="text-[10px] mt-0.5">
+                              {roleLabel}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-green-600">
+                          <CheckCircle className="h-4 w-4" />
+                          <span className="text-sm font-medium">Accesso</span>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                      <CheckCircle className="h-4 w-4" />
-                      <span className="text-sm font-medium">Accesso</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
-      {/* Dialog per la gestione della visibilità */}
+      {/* Dialog gestione visibilità */}
       <Dialog open={visibilityDialogOpen} onOpenChange={setVisibilityDialogOpen}>
         <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Gestisci accesso al documento</DialogTitle>
             <DialogDescription>
-              Scegli nella scheda <strong>Aggiungi</strong> gli utenti a cui dare accesso, oppure nella scheda <strong>Rimuovi</strong> quelli da rimuovere.
-              <span className="block mt-1 text-xs text-muted-foreground">
-                <strong>Nota:</strong> gli amministratori di condominio e i sub‑amministratori hanno sempre accesso a questo documento e non possono essere rimossi.
-              </span>
+              Aggiungi o rimuovi utenti dall'accesso a questo documento.
             </DialogDescription>
           </DialogHeader>
 
-          {/* Toggle Pubblico/Privato nel dialog */}
           <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
             <div className="flex items-center gap-2">
               {isPublicForCondominium ? (
@@ -1021,23 +938,13 @@ export default function DocumentDetailPage() {
               ) : (
                 <Lock className="h-4 w-4 text-muted-foreground" />
               )}
-              <div>
-                <Label htmlFor="public-toggle-dialog" className="text-sm font-medium cursor-pointer">
-                  {isPublicForCondominium ? "Pubblico per tutto il condominio" : "Visibilità limitata"}
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  {isPublicForCondominium 
-                    ? "Tutti i membri possono vedere questo documento" 
-                    : "Solo gli utenti selezionati possono vedere questo documento"}
-                </p>
-              </div>
+              <Label className="text-sm font-medium">
+                {isPublicForCondominium ? "Pubblico per tutto il condominio" : "Visibilità limitata"}
+              </Label>
             </div>
             <Switch
-              id="public-toggle-dialog"
               checked={isPublicForCondominium}
-              onCheckedChange={(checked) => {
-                setIsPublicForCondominium(checked);
-              }}
+              onCheckedChange={setIsPublicForCondominium}
             />
           </div>
 
@@ -1045,196 +952,120 @@ export default function DocumentDetailPage() {
 
           {membersLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : allMembers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Nessun membro trovato in questo condominio.</p>
+              <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : (
-            <>
-              <Tabs defaultValue="add" className="flex-1 flex flex-col">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="add">Aggiungi</TabsTrigger>
-                  <TabsTrigger value="remove">Rimuovi</TabsTrigger>
-                </TabsList>
+            <Tabs defaultValue="add" className="flex-1 flex flex-col">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="add">Aggiungi</TabsTrigger>
+                <TabsTrigger value="remove">Rimuovi</TabsTrigger>
+              </TabsList>
 
-                <TabsContent value="add" className="flex-1 overflow-y-auto py-4 space-y-2">
-                  {(() => {
-                    const visibleUserIds = new Set(visibility.map((v) => v.userId));
-                    const notVisible = allMembers.filter((m) => !visibleUserIds.has(m.id));
-                    if (notVisible.length === 0) {
-                      return (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <p>Tutti i membri hanno già accesso a questo documento.</p>
-                        </div>
-                      );
-                    }
+              <TabsContent value="add" className="flex-1 overflow-y-auto py-4 space-y-2">
+                {(() => {
+                  const visibleUserIds = new Set(visibility.map((v) => v.userId));
+                  const notVisible = allMembers.filter((m) => !visibleUserIds.has(m.id));
+                  if (notVisible.length === 0) {
+                    return <p className="text-center py-8 text-muted-foreground">Tutti i membri hanno già accesso.</p>;
+                  }
+                  return notVisible.map((member) => {
+                    const fullName = `${member.firstName} ${member.lastName}`.trim();
+                    const checked = selectedToAdd.has(member.id);
                     return (
-                      <>
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <Button variant="ghost" size="sm" onClick={toggleAllAdd}>
-                            {selectedToAdd.size === notVisible.length ? "Deseleziona tutti" : "Seleziona tutti"}
-                          </Button>
-                          <span className="text-xs text-muted-foreground">
-                            {selectedToAdd.size} selezionati
-                          </span>
+                      <div
+                        key={member.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${checked ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                          }`}
+                        onClick={() => toggleAdd(member.id)}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleAdd(member.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className={`text-white ${getAvatarColor(fullName)}`}>
+                            {getInitials(fullName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{fullName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                         </div>
-                        {notVisible.map((member) => {
-                          const fullName = `${member.firstName} ${member.lastName}`.trim();
-                          const checked = selectedToAdd.has(member.id);
-                          return (
-                            <div
-                              key={member.id}
-                              className={`flex items-center space-x-3 p-2 rounded-lg border transition hover:bg-muted/50 cursor-pointer ${checked ? "border-green-500 bg-green-50 dark:bg-green-950/20" : ""
-                                }`}
-                              onClick={() => toggleAdd(member.id)}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleAdd(member.id)}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback className={`text-white ${getAvatarColor(fullName)}`}>
-                                  {getInitials(fullName)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{fullName}</p>
-                                <p className="text-xs text-muted-foreground">{member.email}</p>
-                              </div>
-                              <Badge variant="outline" className="text-[10px]">
-                                {roleMap[member.role] || member.role}
-                              </Badge>
-                            </div>
-                          );
-                        })}
-                      </>
+                      </div>
                     );
-                  })()}
-                </TabsContent>
+                  });
+                })()}
+              </TabsContent>
 
-                <TabsContent value="remove" className="flex-1 overflow-y-auto py-4 space-y-2">
-                  {(() => {
-                    const visibleUserIds = new Set(visibility.map((v) => v.userId));
-                    const visibleMembers = allMembers.filter(
-                      (m) => visibleUserIds.has(m.id) && m.role !== "CONDO_ADMIN"
-                    );
-                    if (visibleMembers.length === 0) {
-                      return (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <p>Nessun membro rimovibile (amministratori e sub‑admin non possono essere rimossi).</p>
-                        </div>
-                      );
-                    }
+              <TabsContent value="remove" className="flex-1 overflow-y-auto py-4 space-y-2">
+                {(() => {
+                  const visibleUserIds = new Set(visibility.map((v) => v.userId));
+                  const visibleMembers = allMembers.filter(
+                    (m) => visibleUserIds.has(m.id) && m.role !== "CONDO_ADMIN"
+                  );
+                  if (visibleMembers.length === 0) {
+                    return <p className="text-center py-8 text-muted-foreground">Nessun membro rimovibile.</p>;
+                  }
+                  return visibleMembers.map((member) => {
+                    const fullName = `${member.firstName} ${member.lastName}`.trim();
+                    const checked = selectedToRemove.has(member.id);
                     return (
-                      <>
-                        <div className="flex justify-between items-center pb-2 border-b">
-                          <Button variant="ghost" size="sm" onClick={toggleAllRemove}>
-                            {selectedToRemove.size === visibleMembers.length ? "Deseleziona tutti" : "Seleziona tutti"}
-                          </Button>
-                          <span className="text-xs text-muted-foreground">
-                            {selectedToRemove.size} selezionati
-                          </span>
+                      <div
+                        key={member.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${checked ? "border-destructive bg-destructive/5" : "hover:bg-muted/50"
+                          }`}
+                        onClick={() => toggleRemove(member.id)}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleRemove(member.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className={`text-white ${getAvatarColor(fullName)}`}>
+                            {getInitials(fullName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{fullName}</p>
+                          <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                         </div>
-                        {visibleMembers.map((member) => {
-                          const fullName = `${member.firstName} ${member.lastName}`.trim();
-                          const checked = selectedToRemove.has(member.id);
-                          return (
-                            <div
-                              key={member.id}
-                              className={`flex items-center space-x-3 p-2 rounded-lg border transition hover:bg-muted/50 cursor-pointer ${checked ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""
-                                }`}
-                              onClick={() => toggleRemove(member.id)}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleRemove(member.id)}
-                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                              <Avatar className="h-8 w-8">
-                                <AvatarFallback className={`text-white ${getAvatarColor(fullName)}`}>
-                                  {getInitials(fullName)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{fullName}</p>
-                                <p className="text-xs text-muted-foreground">{member.email}</p>
-                              </div>
-                              <Badge variant="outline" className="text-[10px]">
-                                {roleMap[member.role] || member.role}
-                              </Badge>
-                            </div>
-                          );
-                        })}
-                      </>
+                      </div>
                     );
-                  })()}
-                </TabsContent>
-              </Tabs>
-
-              <div className="border-t pt-3 mt-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Riepilogo modifiche:</span>
-                  <div className="flex gap-4">
-                    <span className="text-green-600">➕ {selectedToAdd.size} da aggiungere</span>
-                    <span className="text-red-600">➖ {selectedToRemove.size} da rimuovere</span>
-                    {isPublicForCondominium && (
-                      <span className="text-blue-600">🌐 Pubblico</span>
-                    )}
-                    {selectedToAdd.size === 0 && selectedToRemove.size === 0 && !isPublicForCondominium && (
-                      <span className="text-muted-foreground">Nessuna modifica</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
+                  });
+                })()}
+              </TabsContent>
+            </Tabs>
           )}
 
           <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setVisibilityDialogOpen(false)}
-              disabled={actionLoading}
-            >
+            <div className="flex-1 text-sm text-muted-foreground">
+              {selectedToAdd.size} da aggiungere, {selectedToRemove.size} da rimuovere
+            </div>
+            <Button variant="outline" onClick={() => setVisibilityDialogOpen(false)}>
               Annulla
             </Button>
-            <Button
-              onClick={handleSaveVisibility}
-              disabled={actionLoading || membersLoading}
-            >
-              {actionLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Salva modifiche"
-              )}
+            <Button onClick={handleSaveVisibility} disabled={actionLoading} className="gap-2">
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+              Salva
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog per nuova versione */}
-      <Dialog open={newVersionDialogOpen} onOpenChange={(open) => {
-        if (!open && !isUploadingVersion) {
-          resetVersionForm();
-          setNewVersionDialogOpen(false);
-        }
-      }}>
+      {/* Dialog nuova versione */}
+      <Dialog open={newVersionDialogOpen} onOpenChange={setNewVersionDialogOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>Carica nuova versione</DialogTitle>
             <DialogDescription>
-              Seleziona il file e, se desideri, modifica il nome.
+              Seleziona il file per la nuova versione.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div
-              className="border-2 border-dashed rounded-lg p-4 text-center hover:bg-muted/50 transition cursor-pointer"
+              className="border-2 border-dashed rounded-lg p-6 text-center hover:bg-muted/50 transition cursor-pointer"
               onClick={() => fileInputRef.current?.click()}
             >
               <Input
@@ -1245,18 +1076,14 @@ export default function DocumentDetailPage() {
                 onChange={handleFileChange}
               />
               {selectedFile ? (
-                <div className="flex items-center justify-center gap-2 text-sm">
-                  <File className="h-4 w-4 text-primary" />
-                  <span className="font-medium truncate max-w-[200px]">
-                    {selectedFile.name}
-                  </span>
-                  <span className="text-muted-foreground text-xs">
-                    ({formatSize(selectedFile.size)})
-                  </span>
+                <div className="flex items-center justify-center gap-2 text-sm flex-wrap">
+                  <File className="h-5 w-5 text-primary" />
+                  <span className="font-medium truncate max-w-[200px]">{selectedFile.name}</span>
+                  <span className="text-muted-foreground text-xs">({formatSize(selectedFile.size)})</span>
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0"
+                    size="icon"
+                    className="h-7 w-7"
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedFile(null);
@@ -1267,65 +1094,41 @@ export default function DocumentDetailPage() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center gap-0.5">
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">
-                    Clicca per selezionare un file
-                  </span>
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="h-10 w-10 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Clicca per selezionare un file</span>
                 </div>
               )}
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="version-name" className="text-xs font-medium">
-                Nome versione
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="version-name" className="text-sm font-medium">Nome versione</Label>
               <Input
                 id="version-name"
                 value={versionName}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\./g, '');
-                  setVersionName(value);
-                }}
+                onChange={(e) => setVersionName(e.target.value.replace(/\./g, ''))}
                 placeholder="Lascia vuoto per usare il nome del file"
-                className="h-8 text-sm"
               />
             </div>
 
             {isUploadingVersion && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span>
                   {uploadStep === "getting-url" && "Preparazione..."}
                   {uploadStep === "uploading-to-storage" && "Caricamento su storage..."}
-                  {uploadStep === "confirming" && "Conferma della versione..."}
+                  {uploadStep === "confirming" && "Conferma..."}
                 </span>
               </div>
             )}
           </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setNewVersionDialogOpen(false)}
-              disabled={isUploadingVersion}
-              size="sm"
-            >
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewVersionDialogOpen(false)} disabled={isUploadingVersion}>
               Annulla
             </Button>
-            <Button
-              onClick={handleUploadNewVersion}
-              disabled={!selectedFile || isUploadingVersion}
-              size="sm"
-            >
-              {isUploadingVersion ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {uploadStep === "uploading-to-storage" ? "Caricando..." : "Elaborazione..."}
-                </>
-              ) : (
-                "Carica versione"
-              )}
+            <Button onClick={handleUploadNewVersion} disabled={!selectedFile || isUploadingVersion} className="gap-2">
+              {isUploadingVersion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              Carica versione
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1333,31 +1136,33 @@ export default function DocumentDetailPage() {
 
       {/* Dialog cambio stato */}
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Cambia stato del documento</DialogTitle>
-            <DialogDescription>
-              Scegli il nuovo stato per il documento.
-            </DialogDescription>
+            <DialogTitle>Cambia stato</DialogTitle>
+            <DialogDescription>Scegli il nuovo stato per il documento.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <RadioGroup
               value={tempStatus}
               onValueChange={(val) => setTempStatus(val as "DRAFT" | "ACTIVE")}
-              className="space-y-2"
+              className="space-y-3"
             >
-              <div className="flex items-start space-x-2">
+              <div className="flex items-start space-x-3 p-3 rounded-lg border">
                 <RadioGroupItem value="DRAFT" id="status-draft" />
                 <div>
-                  <Label htmlFor="status-draft" className="font-medium">Bozza</Label>
-                  <p className="text-sm text-muted-foreground">Visibile solo agli amministratori.</p>
+                  <Label htmlFor="status-draft" className="font-medium flex items-center gap-2">
+                    <EyeOff className="h-4 w-4" /> Bozza
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-0.5">Visibile solo agli amministratori.</p>
                 </div>
               </div>
-              <div className="flex items-start space-x-2">
+              <div className="flex items-start space-x-3 p-3 rounded-lg border">
                 <RadioGroupItem value="ACTIVE" id="status-active" />
                 <div>
-                  <Label htmlFor="status-active" className="font-medium">Attivo</Label>
-                  <p className="text-sm text-muted-foreground">Visibile a tutti gli autorizzati.</p>
+                  <Label htmlFor="status-active" className="font-medium flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" /> Attivo
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-0.5">Visibile a tutti gli autorizzati.</p>
                 </div>
               </div>
             </RadioGroup>
@@ -1366,46 +1171,43 @@ export default function DocumentDetailPage() {
             <Button variant="outline" onClick={() => setStatusDialogOpen(false)} disabled={actionLoading}>
               Annulla
             </Button>
-            <Button
-              onClick={() => handleStatusChange(tempStatus)}
-              disabled={actionLoading || tempStatus === document.status}
-            >
-              {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Aggiorna"}
+            <Button onClick={() => handleStatusChange(tempStatus)} disabled={actionLoading || tempStatus === document.status} className="gap-2">
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+              Aggiorna
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Dialog elimina */}
-      <Dialog
-        open={deleteDialog.open}
-        onOpenChange={(open) => !actionLoading && setDeleteDialog({ open, type: null })}
-      >
-        <DialogContent>
+      <Dialog open={deleteDialog.open} onOpenChange={(open) => !actionLoading && setDeleteDialog({ open, type: null })}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Elimina documento</DialogTitle>
-            <DialogDescription>
-              Scegli l'opzione desiderata.
-            </DialogDescription>
+            <DialogDescription>Scegli l'opzione desiderata.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <RadioGroup
               value={deleteDialog.type || "program"}
               onValueChange={(val) => setDeleteDialog((prev) => ({ ...prev, type: val as "delete" | "program" }))}
-              className="space-y-2"
+              className="space-y-3"
             >
-              <div className="flex items-start space-x-2">
+              <div className="flex items-start space-x-3 p-3 rounded-lg border">
                 <RadioGroupItem value="program" id="del-program" />
                 <div>
-                  <Label htmlFor="del-program" className="font-medium">Sposta nel cestino</Label>
-                  <p className="text-sm text-muted-foreground">Eliminazione programmata, verrà cancellato dopo 7 giorni.</p>
+                  <Label htmlFor="del-program" className="font-medium flex items-center gap-2">
+                    <Archive className="h-4 w-4" /> Sposta nel cestino
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-0.5">Verrà cancellato dopo 7 giorni.</p>
                 </div>
               </div>
-              <div className="flex items-start space-x-2">
+              <div className="flex items-start space-x-3 p-3 rounded-lg border border-destructive/30">
                 <RadioGroupItem value="delete" id="del-permanent" />
                 <div>
-                  <Label htmlFor="del-permanent" className="font-medium text-destructive">Elimina definitivamente</Label>
-                  <p className="text-sm text-muted-foreground">Azione irreversibile.</p>
+                  <Label htmlFor="del-permanent" className="font-medium text-destructive flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" /> Elimina definitivamente
+                  </Label>
+                  <p className="text-sm text-muted-foreground mt-0.5">Azione irreversibile.</p>
                 </div>
               </div>
             </RadioGroup>
@@ -1418,14 +1220,10 @@ export default function DocumentDetailPage() {
               variant={deleteDialog.type === "delete" ? "destructive" : "default"}
               onClick={handleDeleteAction}
               disabled={actionLoading || !deleteDialog.type}
+              className="gap-2"
             >
-              {actionLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : deleteDialog.type === "delete" ? (
-                "Elimina definitivamente"
-              ) : (
-                "Sposta nel cestino"
-              )}
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : deleteDialog.type === "delete" ? <Trash2 className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+              {deleteDialog.type === "delete" ? "Elimina" : "Sposta nel cestino"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1433,19 +1231,14 @@ export default function DocumentDetailPage() {
 
       {/* Dialog ripristina */}
       <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Ripristina documento</DialogTitle>
-            <DialogDescription>
-              Scegli il nuovo stato per il documento ripristinato.
-            </DialogDescription>
+            <DialogDescription>Scegli il nuovo stato per il documento ripristinato.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <Label htmlFor="restore-status" className="text-sm font-medium">Nuovo stato</Label>
-            <Select
-              value={restoreStatus}
-              onValueChange={(val) => setRestoreStatus(val as "DRAFT" | "ACTIVE")}
-            >
+            <Label className="text-sm font-medium">Nuovo stato</Label>
+            <Select value={restoreStatus} onValueChange={(val) => setRestoreStatus(val as "DRAFT" | "ACTIVE")}>
               <SelectTrigger className="mt-2">
                 <SelectValue placeholder="Scegli stato" />
               </SelectTrigger>
@@ -1459,8 +1252,9 @@ export default function DocumentDetailPage() {
             <Button variant="outline" onClick={() => setRestoreDialogOpen(false)} disabled={actionLoading}>
               Annulla
             </Button>
-            <Button onClick={handleRestore} disabled={actionLoading}>
-              {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Ripristina"}
+            <Button onClick={handleRestore} disabled={actionLoading} className="gap-2">
+              {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+              Ripristina
             </Button>
           </DialogFooter>
         </DialogContent>
