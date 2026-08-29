@@ -78,7 +78,7 @@ function App() {
 
       <Route element={<ProtectedRoute><ResidentDashboardLayout /></ProtectedRoute>}>
         <Route path="/resident/dashboard" element={<ResidentDashboardPage />} />
-        
+
         <Route path="/resident/documents" element={<ResidentDocumentsPage />} />
         <Route path="/resident/document/:documentId" element={<ResidentDocumentDetailPage />} />
 

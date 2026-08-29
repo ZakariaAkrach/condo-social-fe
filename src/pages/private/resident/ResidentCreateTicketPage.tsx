@@ -1,34 +1,35 @@
 // pages/private/resident/ResidentCreateTicketPage.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, Check, ChevronRight, Upload, FileText, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, Upload, FileText, MessageSquare, Send, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useCondominium } from "@/components/residentDashboard/CondominiumContext";
 import { cn } from "@/lib/utils";
 import { ticketResidentApi, type CreateTicketRequest, type TicketCategory, type TicketPriority } from "@/app/api/ticketResident";
 import { TicketUploadDialog } from "@/components/residentDashboard/TicketUploadDialog";
 
-const CATEGORIES: { value: TicketCategory; label: string }[] = [
-  { value: "MAINTENANCE", label: "Manutenzione" },
-  { value: "CLEANING", label: "Pulizia" },
-  { value: "NOISE", label: "Rumori" },
-  { value: "ADMINISTRATIVE", label: "Amministrativo" },
-  { value: "SECURITY", label: "Sicurezza" },
-  { value: "UTILITIES", label: "Utilità" },
-  { value: "COMMON_AREAS", label: "Spazi comuni" },
-  { value: "OTHER", label: "Altro" },
+const CATEGORIES: { value: TicketCategory; label: string; icon: string }[] = [
+  { value: "MAINTENANCE", label: "Manutenzione", icon: "🔧" },
+  { value: "CLEANING", label: "Pulizia", icon: "🧹" },
+  { value: "NOISE", label: "Rumori", icon: "🔊" },
+  { value: "ADMINISTRATIVE", label: "Amministrativo", icon: "📋" },
+  { value: "SECURITY", label: "Sicurezza", icon: "🔒" },
+  { value: "UTILITIES", label: "Utilità", icon: "💡" },
+  { value: "COMMON_AREAS", label: "Spazi comuni", icon: "🏢" },
+  { value: "OTHER", label: "Altro", icon: "📌" },
 ];
 
-const PRIORITIES: { value: TicketPriority; label: string }[] = [
-  { value: "LOW", label: "Bassa" },
-  { value: "MEDIUM", label: "Media" },
-  { value: "HIGH", label: "Alta" },
+const PRIORITIES: { value: TicketPriority; label: string; color: string; description: string }[] = [
+  { value: "LOW", label: "Bassa", color: "bg-blue-500", description: "Non urgente" },
+  { value: "MEDIUM", label: "Media", color: "bg-amber-500", description: "Normale urgenza" },
+  { value: "HIGH", label: "Alta", color: "bg-red-500", description: "Urgente" },
 ];
 
 const STEPS = [
@@ -106,6 +107,15 @@ export default function ResidentCreateTicketPage() {
     }
   };
 
+  const handleCloseSuccessDialog = () => {
+    setShowSuccessDialog(false);
+    if (createdTicketId) {
+      navigate(`/resident/ticket/${createdTicketId}`);
+    } else {
+      navigate("/resident/tickets");
+    }
+  };
+
   const handleSuccessAction = (withUpload: boolean) => {
     setShowSuccessDialog(false);
     if (withUpload && createdTicketId) {
@@ -133,63 +143,93 @@ export default function ResidentCreateTicketPage() {
     switch (step) {
       case 0:
         return (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="title">Titolo *</Label>
+              <Label htmlFor="title" className="text-sm font-medium">
+                Titolo <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="title"
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                placeholder="Inserisci un titolo breve"
-                className="text-base"
+                placeholder="Es: Ascensore rotto al piano 3"
+                className="text-base h-12"
                 autoFocus
               />
-              <p className="text-xs text-muted-foreground">Es: "Ascensore rotto", "Pulizia scale"</p>
+              <p className="text-xs text-muted-foreground">
+                Usa un titolo breve e descrittivo
+              </p>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="category">Categoria</Label>
-              <Select
-                value={form.category}
-                onValueChange={(val) => setForm({ ...form, category: val as TicketCategory })}
-              >
-                <SelectTrigger><SelectValue placeholder="Seleziona una categoria" /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((cat) => (
-                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium">Categoria</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setForm({ ...form, category: cat.value })}
+                    className={cn(
+                      "flex items-center gap-2 p-3 rounded-xl border transition-all text-left",
+                      form.category === cat.value
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <span className="text-xl">{cat.icon}</span>
+                    <span className="text-sm font-medium">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="priority">Priorità</Label>
-              <Select
-                value={form.priority}
-                onValueChange={(val) => setForm({ ...form, priority: val as TicketPriority })}
-              >
-                <SelectTrigger><SelectValue placeholder="Seleziona priorità" /></SelectTrigger>
-                <SelectContent>
-                  {PRIORITIES.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium">Priorità</Label>
+              <div className="space-y-2">
+                {PRIORITIES.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setForm({ ...form, priority: p.value })}
+                    className={cn(
+                      "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left",
+                      form.priority === p.value
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "hover:bg-muted/50"
+                    )}
+                  >
+                    <span className={cn("h-3 w-3 rounded-full", p.color)} />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{p.label}</p>
+                      <p className="text-xs text-muted-foreground">{p.description}</p>
+                    </div>
+                    {form.priority === p.value && (
+                      <Check className="h-4 w-4 text-primary" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         );
       case 1:
         return (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="description">Descrizione *</Label>
+              <Label htmlFor="description" className="text-sm font-medium">
+                Descrizione <span className="text-destructive">*</span>
+              </Label>
               <Textarea
                 id="description"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 placeholder="Descrivi il problema in dettaglio..."
-                className="min-h-[120px]"
+                className="min-h-[160px] text-base"
                 required
               />
-              <p className="text-xs text-muted-foreground">Inserisci una descrizione chiara e dettagliata.</p>
+              <p className="text-xs text-muted-foreground">
+                Inserisci tutti i dettagli utili per risolvere il problema
+              </p>
             </div>
           </div>
         );
@@ -197,30 +237,36 @@ export default function ResidentCreateTicketPage() {
         return (
           <div className="space-y-4">
             <Card className="bg-muted/30">
-              <CardContent className="p-4 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Titolo</span>
-                  <span className="font-medium">{form.title || "—"}</span>
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Titolo</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Categoria</span>
-                  <span className="font-medium">
-                    {CATEGORIES.find(c => c.value === form.category)?.label || "—"}
-                  </span>
+                <p className="font-semibold text-base">{form.title || "—"}</p>
+
+                <div className="border-t pt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm text-muted-foreground">Dettagli</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">
+                      {CATEGORIES.find(c => c.value === form.category)?.icon}{" "}
+                      {CATEGORIES.find(c => c.value === form.category)?.label}
+                    </Badge>
+                    <Badge variant="outline">
+                      {PRIORITIES.find(p => p.value === form.priority)?.label}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Priorità</span>
-                  <span className="font-medium">
-                    {PRIORITIES.find(p => p.value === form.priority)?.label || "—"}
-                  </span>
-                </div>
-                <div className="text-sm border-t pt-2 mt-2">
-                  <span className="text-muted-foreground">Descrizione:</span>
+
+                <div className="border-t pt-3">
+                  <span className="text-sm text-muted-foreground">Descrizione:</span>
                   <p className="mt-1 text-sm whitespace-pre-wrap">{form.description}</p>
                 </div>
+
                 {form.initialMessage && (
-                  <div className="text-sm border-t pt-2 mt-2">
-                    <span className="text-muted-foreground">Messaggio iniziale:</span>
+                  <div className="border-t pt-3">
+                    <span className="text-sm text-muted-foreground">Messaggio iniziale:</span>
                     <p className="mt-1 text-sm whitespace-pre-wrap">{form.initialMessage}</p>
                   </div>
                 )}
@@ -237,94 +283,118 @@ export default function ResidentCreateTicketPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-10 w-10">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-bold">Nuovo ticket</h1>
-      </div>
+    <div className="max-w-2xl mx-auto">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-9 w-9 shrink-0">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-lg font-bold">Nuovo ticket</h1>
+          <Badge variant="secondary" className="ml-auto text-xs">
+            Passo {step + 1} di {STEPS.length}
+          </Badge>
+        </div>
 
-      <div className="flex items-center justify-between mb-6">
-        {STEPS.map((s, idx) => {
-          const Icon = s.icon;
-          const isActive = step === idx;
-          const isCompleted = step > idx;
-          return (
-            <div key={s.id} className="flex items-center gap-2">
-              <div
+        {/* Progress bar */}
+        <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary rounded-full transition-all duration-300"
+            style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
+          />
+        </div>
+
+        {/* Step labels */}
+        <div className="flex justify-between mt-2">
+          {STEPS.map((s, idx) => {
+            const isActive = step === idx;
+            const isCompleted = step > idx;
+            return (
+              <span
+                key={s.id}
                 className={cn(
-                  "flex items-center justify-center rounded-full w-8 h-8 text-sm font-medium transition-all",
-                  isActive && "bg-primary text-primary-foreground",
-                  isCompleted && "bg-green-500 text-white",
-                  !isActive && !isCompleted && "bg-muted text-muted-foreground"
+                  "text-xs font-medium transition-colors",
+                  isActive && "text-primary",
+                  isCompleted && "text-green-600",
+                  !isActive && !isCompleted && "text-muted-foreground"
                 )}
               >
-                {isCompleted ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-              </div>
-              <span className={cn(
-                "text-xs font-medium hidden sm:block",
-                isActive && "text-primary",
-                isCompleted && "text-green-600",
-                !isActive && !isCompleted && "text-muted-foreground"
-              )}>
                 {s.label}
               </span>
-              {idx < STEPS.length - 1 && (
-                <div className={cn(
-                  "w-8 h-0.5 mx-1 hidden sm:block",
-                  isCompleted ? "bg-green-500" : "bg-muted"
-                )} />
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="p-4 md:p-6 space-y-4">
+        {/* Content */}
+        <Card>
+          <CardContent className="p-5">
+            {renderStep()}
+          </CardContent>
+        </Card>
+
+        {/* Navigation buttons */}
+        <div className="flex gap-3">
+          {step > 0 && (
+            <Button variant="outline" onClick={goBack} className="flex-1 gap-2 h-12">
+              <ArrowLeft className="h-4 w-4" />
+              Indietro
+            </Button>
+          )}
+          {step < STEPS.length - 1 ? (
+            <Button onClick={goNext} disabled={!isStepValid()} className="flex-1 gap-2 h-12">
+              Continua
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button onClick={handleSubmit} disabled={loading} className="flex-1 gap-2 h-12">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creazione...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4" />
+                  Crea ticket
+                </>
               )}
-            </div>
-          );
-        })}
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="bg-background rounded-xl border p-4 md:p-6">
-        {renderStep()}
-      </div>
-
-      <div className="flex gap-3 mt-6">
-        {step > 0 && (
-          <Button variant="outline" onClick={goBack} className="flex-1">Indietro</Button>
-        )}
-        {step < STEPS.length - 1 ? (
-          <Button onClick={goNext} disabled={!isStepValid()} className="flex-1 gap-2">
-            Continua <ChevronRight className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button onClick={handleSubmit} disabled={loading} className="flex-1 gap-2">
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <span className="animate-spin">⏳</span> Creazione...
-              </span>
-            ) : (
-              <>
-                <Send className="h-4 w-4" /> Crea ticket
-              </>
-            )}
-          </Button>
-        )}
-      </div>
-
+      {/* Success Dialog */}
       {showSuccessDialog && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 bg-black/50">
-          <div className="bg-background rounded-2xl max-w-md w-full p-6 animate-in slide-in-from-bottom sm:slide-in-from-top duration-300">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+          onClick={handleCloseSuccessDialog}
+        >
+          <div 
+            className="bg-background rounded-2xl max-w-md w-full p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleCloseSuccessDialog}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-5 w-5" />
+            </button>
             <div className="text-center">
-              <div className="bg-green-100 dark:bg-green-900/30 h-16 w-16 rounded-full flex items-center justify-center mx-auto">
-                <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
+              <div className="bg-green-100 dark:bg-green-900/30 h-20 w-20 rounded-full flex items-center justify-center mx-auto">
+                <Check className="h-10 w-10 text-green-600 dark:text-green-400" />
               </div>
-              <h2 className="text-xl font-bold mt-4">Ticket creato!</h2>
+              <h2 className="text-2xl font-bold mt-4">Ticket creato!</h2>
               <p className="text-muted-foreground mt-2">
-                Il tuo ticket è stato creato con successo. Vuoi aggiungere un allegato?
+                Il tuo ticket è stato creato con successo.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 mt-6">
               <Button
                 variant="outline"
                 onClick={() => handleSuccessAction(false)}
-                className="flex-1"
+                className="flex-1 gap-2"
               >
                 Vai al ticket
               </Button>
@@ -332,7 +402,8 @@ export default function ResidentCreateTicketPage() {
                 onClick={() => handleSuccessAction(true)}
                 className="flex-1 gap-2"
               >
-                <Upload className="h-4 w-4" /> Allega file
+                <Upload className="h-4 w-4" />
+                Allega file
               </Button>
             </div>
           </div>

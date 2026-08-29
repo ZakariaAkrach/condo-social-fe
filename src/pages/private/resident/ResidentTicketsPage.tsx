@@ -1,10 +1,10 @@
 // src/pages/private/resident/ResidentTicketsPage.tsx
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Plus, Search, Ticket as TicketIcon, Clock, AlertCircle, CheckCircle, ChevronRight, Loader2, Inbox, Filter } from "lucide-react";
+import { Plus, Search, Ticket as TicketIcon, Clock, AlertCircle, CheckCircle, ChevronRight, Loader2, Inbox, Filter, X, MessageSquare, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,13 +15,13 @@ import { ticketResidentApi, type TicketListItem, type TicketStatus } from "@/app
 
 const STATUS_CONFIG: Record<TicketStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
   OPEN: { label: "Aperto", variant: "default", icon: <Clock className="h-3 w-3" /> },
-  IN_PROGRESS: { label: "In corso", variant: "secondary", icon: <Clock className="h-3 w-3" /> },
-  WAITING_USER: { label: "In attesa", variant: "outline", icon: <AlertCircle className="h-3 w-3" /> },
-  WAITING_ADMIN: { label: "In attesa admin", variant: "outline", icon: <AlertCircle className="h-3 w-3" /> },
-  CLOSED: { label: "Chiuso", variant: "destructive", icon: <CheckCircle className="h-3 w-3" /> },
+  IN_PROGRESS: { label: "In lavorazione", variant: "secondary", icon: <Clock className="h-3 w-3" /> },
+  WAITING_USER: { label: "Richiede la tua risposta", variant: "destructive", icon: <MessageSquare className="h-3 w-3" /> },
+  WAITING_ADMIN: { label: "In attesa di risposta", variant: "outline", icon: <User className="h-3 w-3" /> },
+  CLOSED: { label: "Risolto", variant: "default", icon: <CheckCircle className="h-3 w-3" /> },
 };
 
-const FILTER_STATUSES: TicketStatus[] = ["OPEN", "IN_PROGRESS", "WAITING_ADMIN", "CLOSED"];
+const FILTER_STATUSES: TicketStatus[] = ["OPEN", "IN_PROGRESS", "WAITING_USER", "WAITING_ADMIN", "CLOSED"];
 
 const PRIORITY_CONFIG: Record<string, { label: string; className: string }> = {
   LOW: { label: "Bassa", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
@@ -152,173 +152,230 @@ export default function ResidentTicketsPage() {
     );
   }
 
+  const needsAttentionTickets = tickets.filter((t) => t.status === "WAITING_USER");
+  const otherTickets = tickets.filter((t) => t.status !== "WAITING_USER");
+
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <TicketIcon className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Ticket</h1>
-            <p className="text-sm text-muted-foreground">Le tue richieste di assistenza</p>
-          </div>
-        </div>
-        <Button size="sm" className="gap-2" onClick={goToCreate}>
-          <Plus className="h-4 w-4" />
-          Nuovo ticket
-        </Button>
-      </div>
-
-      {/* Filtri */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Cerca per titolo..."
-                  value={search}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setShowFilters(!showFilters)}
-                className="shrink-0"
-              >
-                <Filter className="h-4 w-4" />
-              </Button>
+    <div className="max-w-2xl mx-auto">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="rounded-lg bg-primary/10 p-2 shrink-0">
+              <TicketIcon className="h-5 w-5 text-primary" />
             </div>
-            {showFilters && (
-              <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Tutti gli stati" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Tutti</SelectItem>
-                  {FILTER_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {STATUS_CONFIG[status].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Loading */}
-      {loading && tickets.length === 0 && (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-4">
-                <Skeleton className="h-20 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && tickets.length === 0 && (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="rounded-full bg-muted p-4 mb-3">
-              <Inbox className="h-8 w-8 text-muted-foreground" />
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold truncate">Ticket</h1>
+              <p className="text-xs text-muted-foreground">
+                {tickets.length > 0 ? `${tickets.length} ticket` : "Le tue richieste"}
+              </p>
             </div>
-            <p className="font-medium text-muted-foreground">Nessun ticket trovato</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Crea un nuovo ticket per ricevere assistenza
-            </p>
-            <Button variant="outline" size="sm" onClick={goToCreate} className="mt-4 gap-2">
-              <Plus className="h-4 w-4" />
-              Crea ticket
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Ticket list */}
-      {tickets.length > 0 && (
-        <div className="space-y-3">
-          {tickets.map((ticket) => {
-            const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
-            const statusConfig = STATUS_CONFIG[ticket.status];
-            return (
-              <Card
-                key={ticket.id}
-                className="cursor-pointer hover:shadow-md transition-all active:scale-[0.99]"
-                onClick={() => goToDetail(ticket.id)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <Badge variant={statusConfig.variant} className="gap-1 text-xs">
-                          {statusConfig.icon}
-                          {statusConfig.label}
-                        </Badge>
-                        <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", priorityConfig.className)}>
-                          {priorityConfig.label}
-                        </span>
-                      </div>
-                      <h3 className="font-semibold text-base truncate">{ticket.title}</h3>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(ticket.createdAt).toLocaleDateString("it-IT", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                      {ticket.description && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{ticket.description}</p>
-                      )}
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-2" />
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Load more */}
-      {!loading && hasMore && tickets.length > 0 && (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="outline"
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-            className="gap-2"
-          >
-            {loadingMore ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Caricamento...
-              </>
-            ) : (
-              "Carica altri ticket"
-            )}
+          </div>
+          <Button size="sm" className="gap-2 shrink-0" onClick={goToCreate}>
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Nuovo</span>
           </Button>
         </div>
-      )}
 
-      {/* End of list */}
-      {!loading && !hasMore && tickets.length > 0 && (
-        <p className="text-center text-xs text-muted-foreground pt-2">
-          — Fine lista —
-        </p>
-      )}
+        {/* Search & Filter */}
+        <div className="mt-3 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Cerca per titolo..."
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setShowFilters(!showFilters)}
+            className="shrink-0 h-10 w-10"
+          >
+            {showFilters ? <X className="h-4 w-4" /> : <Filter className="h-4 w-4" />}
+          </Button>
+        </div>
+
+        {showFilters && (
+          <div className="mt-2">
+            <Select value={statusFilter} onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Tutti gli stati" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tutti</SelectItem>
+                {FILTER_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {STATUS_CONFIG[status].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* Sezione Richiede la tua attenzione */}
+        {!loading && needsAttentionTickets.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-destructive" />
+              <h2 className="font-semibold text-sm text-destructive">
+                Richiedono la tua risposta
+              </h2>
+              <Badge variant="destructive" className="text-xs">
+                {needsAttentionTickets.length}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {needsAttentionTickets.map((ticket) => (
+                <Card
+                  key={ticket.id}
+                  className="cursor-pointer hover:shadow-md transition-all active:bg-muted/50 border-destructive/30 bg-destructive/5"
+                  onClick={() => goToDetail(ticket.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-base truncate">{ticket.title}</h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(ticket.createdAt).toLocaleDateString("it-IT", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-destructive shrink-0 mt-1" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Sezione altri ticket */}
+        {otherTickets.length > 0 && (
+          <section className="space-y-2">
+            {needsAttentionTickets.length > 0 && (
+              <h2 className="font-semibold text-sm text-muted-foreground">
+                Altri ticket
+              </h2>
+            )}
+            <div className="space-y-3">
+              {otherTickets.map((ticket) => {
+                const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.MEDIUM;
+                const statusConfig = STATUS_CONFIG[ticket.status];
+                return (
+                  <Card
+                    key={ticket.id}
+                    className="cursor-pointer hover:shadow-md transition-all active:bg-muted/50"
+                    onClick={() => goToDetail(ticket.id)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <Badge variant={statusConfig.variant} className="gap-1 text-xs">
+                              {statusConfig.icon}
+                              {statusConfig.label}
+                            </Badge>
+                            <span className={cn("text-xs font-medium px-2.5 py-0.5 rounded-full", priorityConfig.className)}>
+                              {priorityConfig.label}
+                            </span>
+                          </div>
+                          <h3 className="font-semibold text-base truncate">{ticket.title}</h3>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(ticket.createdAt).toLocaleDateString("it-IT", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 mt-2" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Loading */}
+        {loading && tickets.length === 0 && (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-6 w-16" />
+                  </div>
+                  <Skeleton className="h-4 w-3/4 mb-1" />
+                  <Skeleton className="h-3 w-1/3" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && tickets.length === 0 && (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="rounded-full bg-muted p-5 mb-4">
+                <Inbox className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <p className="font-semibold text-foreground">Nessun ticket trovato</p>
+              <p className="text-sm text-muted-foreground mt-1 text-center">
+                {search || statusFilter !== "ALL"
+                  ? "Prova a modificare i filtri di ricerca"
+                  : "Crea un nuovo ticket per ricevere assistenza"}
+              </p>
+              <Button variant="outline" size="sm" onClick={goToCreate} className="mt-4 gap-2">
+                <Plus className="h-4 w-4" />
+                Crea ticket
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Load more */}
+        {!loading && hasMore && tickets.length > 0 && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="gap-2"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Caricamento...
+                </>
+              ) : (
+                "Carica altri ticket"
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* End of list */}
+        {!loading && !hasMore && tickets.length > 0 && (
+          <p className="text-center text-xs text-muted-foreground pt-2">
+            — Fine lista —
+          </p>
+        )}
+      </div>
     </div>
   );
 }

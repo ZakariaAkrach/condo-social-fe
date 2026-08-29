@@ -23,6 +23,7 @@ import {
   Inbox,
   AlertCircle,
   Search,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -72,6 +73,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
   ACTIVE: { label: "Attivo", variant: "default", icon: CheckCircle },
   DRAFT: { label: "Bozza", variant: "secondary", icon: EyeOff },
   DELETED: { label: "Eliminato", variant: "destructive", icon: Trash2 },
+  POLL_CLOSED: { label: "Sondaggio chiuso", variant: "outline", icon: Lock },
 };
 
 export default function AdminPostDetailPage() {
@@ -104,7 +106,7 @@ export default function AdminPostDetailPage() {
     type: "delete" | "program";
   }>({ open: false, type: "program" });
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-  const [tempStatus, setTempStatus] = useState<"ACTIVE" | "DRAFT">("DRAFT");
+  const [tempStatus, setTempStatus] = useState<"ACTIVE" | "DRAFT" | "POLL_CLOSED">("DRAFT");
   const [actionLoading, setActionLoading] = useState(false);
 
   const [voteFilters, setVoteFilters] = useState({
@@ -127,7 +129,7 @@ export default function AdminPostDetailPage() {
       const response = await postAdminApi.fetchPostDetail(condominiumId, postId);
       setPost(response.data);
       if (response.data.status !== "DELETED") {
-        setTempStatus(response.data.status as "ACTIVE" | "DRAFT");
+        setTempStatus(response.data.status as "ACTIVE" | "DRAFT" | "POLL_CLOSED");
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || "Errore nel caricamento del post";
@@ -221,13 +223,13 @@ export default function AdminPostDetailPage() {
     navigate(`/admin/condomini/${condominiumId}/posts`);
   };
 
-  const handleStatusChange = async (newStatus: "ACTIVE" | "DRAFT") => {
+  const handleStatusChange = async (newStatus: "ACTIVE" | "DRAFT" | "POLL_CLOSED") => {
     if (!condominiumId || !postId || !post) return;
 
     setActionLoading(true);
     try {
       await postAdminApi.changeStatus(condominiumId, postId, { status: newStatus });
-      toast.success(`Stato cambiato in ${newStatus === "ACTIVE" ? "Attivo" : "Bozza"}`);
+      toast.success(`Stato cambiato in ${STATUS_MAP[newStatus]?.label || newStatus}`);
       await fetchPostDetail();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Errore durante il cambio stato");
@@ -354,7 +356,7 @@ export default function AdminPostDetailPage() {
                     Azioni
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem
                     onClick={() =>
                       handleStatusChange(post.status === "ACTIVE" ? "DRAFT" : "ACTIVE")
@@ -365,6 +367,11 @@ export default function AdminPostDetailPage() {
                         <EyeOff className="h-4 w-4 mr-2" />
                         Imposta Bozza
                       </>
+                    ) : post.status === "POLL_CLOSED" ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Riapri post
+                      </>
                     ) : (
                       <>
                         <CheckCircle className="h-4 w-4 mr-2" />
@@ -372,6 +379,14 @@ export default function AdminPostDetailPage() {
                       </>
                     )}
                   </DropdownMenuItem>
+                  {post.poll && post.status === "ACTIVE" && (
+                    <DropdownMenuItem
+                      onClick={() => handleStatusChange("POLL_CLOSED")}
+                    >
+                      <Lock className="h-4 w-4 mr-2" />
+                      Chiudi sondaggio
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     className="text-yellow-600"
                     onClick={() => setDeleteDialog({ open: true, type: "program" })}
@@ -449,7 +464,9 @@ export default function AdminPostDetailPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Sondaggio</p>
-                <p className="text-xl font-bold">{post.poll ? "Attivo" : "Nessuno"}</p>
+                <p className="text-xl font-bold">
+                  {post.status === "POLL_CLOSED" ? "Chiuso" : post.poll ? "Attivo" : "Nessuno"}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -790,7 +807,7 @@ export default function AdminPostDetailPage() {
           <div className="py-4">
             <RadioGroup
               value={tempStatus}
-              onValueChange={(val) => setTempStatus(val as "ACTIVE" | "DRAFT")}
+              onValueChange={(val) => setTempStatus(val as "ACTIVE" | "DRAFT" | "POLL_CLOSED")}
               className="space-y-3"
             >
               <div className="flex items-start space-x-3 p-3 rounded-lg border">
@@ -813,6 +830,20 @@ export default function AdminPostDetailPage() {
                   <p className="text-sm text-muted-foreground mt-0.5">Visibile a tutti i residenti.</p>
                 </div>
               </div>
+              {post?.poll && (
+                <div className="flex items-start space-x-3 p-3 rounded-lg border">
+                  <RadioGroupItem value="POLL_CLOSED" id="status-poll-closed" />
+                  <div>
+                    <Label htmlFor="status-poll-closed" className="font-medium flex items-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      Sondaggio chiuso
+                    </Label>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      Chiude il sondaggio ma mantiene il post visibile.
+                    </p>
+                  </div>
+                </div>
+              )}
             </RadioGroup>
           </div>
           <DialogFooter>
