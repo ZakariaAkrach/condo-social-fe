@@ -8,12 +8,8 @@ export function PageLoader() {
 
                 <div className="text-center">
                     <h2 className="text-lg font-semibold">
-                        Loading your account...
+                        Stiamo caricando il tuo account...
                     </h2>
-
-                    <p className="text-sm text-muted-foreground">
-                        Please wait a moment.
-                    </p>
                 </div>
             </div>
         </div>
