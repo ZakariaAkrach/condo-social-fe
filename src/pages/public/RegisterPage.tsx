@@ -21,7 +21,7 @@ function LegalConsentSection({
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const [dpaAccepted, setDpaAccepted] = useState(false)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   const allAccepted = termsAccepted && privacyAccepted && dpaAccepted
 
