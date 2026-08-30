@@ -101,9 +101,6 @@ const formatActivityText = (activity: FetchActivityResponseDto) => {
     UPLOADED: "è stato caricato",
     UPDATED_VERSION: "ha aggiornato la versione",
     DELETED_DOCUMENT: "ha eliminato il documento",
-    SUBSCRIPTION_STARTED: "abbonamento iniziato",
-    SUBSCRIPTION_CANCELLED: "abbonamento cancellato",
-    PAYMENT_RECEIVED: "pagamento ricevuto",
   };
   const action = actionMap[activityType] || activityType.toLowerCase();
   const entity = entityType.toLowerCase();
@@ -500,9 +497,6 @@ export default function AdminRecentActivities({
                 <option value="UPLOADED">Caricato</option>
                 <option value="UPDATED_VERSION">Versione aggiornata</option>
                 <option value="DELETED_DOCUMENT">Documento eliminato</option>
-                <option value="SUBSCRIPTION_STARTED">Abbonamento iniziato</option>
-                <option value="SUBSCRIPTION_CANCELLED">Abbonamento cancellato</option>
-                <option value="PAYMENT_RECEIVED">Pagamento ricevuto</option>
               </select>
             </div>
 
@@ -524,8 +518,6 @@ export default function AdminRecentActivities({
                 <option value="POST">Post</option>
                 <option value="DOCUMENT">Documento</option>
                 <option value="DOCUMENT_VERSION">Versione documento</option>
-                <option value="SUBSCRIPTION">Abbonamento</option>
-                <option value="PAYMENT">Pagamento</option>
               </select>
             </div>
 
