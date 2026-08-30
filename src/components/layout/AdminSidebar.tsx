@@ -93,7 +93,7 @@ export function AdminSidebar({
                 transition={{ duration: 0.25, ease: "easeInOut" }}
                 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent whitespace-nowrap"
               >
-                CondoConnect
+                CondoSocial
               </motion.span>
             )}
           </AnimatePresence>
