@@ -15,6 +15,8 @@ import {
   Info,
   Shield,
   Trash2,
+  CreditCard,
+  DollarSign,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
@@ -22,52 +24,118 @@ import { it } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import type { CondominiumDto } from "@/app/api/condominium";
 
+// Mappa traduzioni per ActivityType
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  // Generali
+  CREATED: "Creato",
+  UPDATED: "Aggiornato",
+  DELETED: "Eliminato",
+  ARCHIVED: "Archiviato",
+  RESTORED: "Ripristinato",
+  
+  // Inviti
+  INVITED: "Invitato",
+  ACCEPTED_INVITE: "Invito accettato",
+  DECLINED_INVITE: "Invito rifiutato",
+  
+  // Utenti
+  JOINED: "Unito",
+  LEFT: "Lasciato",
+  REMOVED: "Rimosso",
+  ROLE_CHANGED: "Ruolo cambiato",
+  
+  // Ticket
+  ASSIGN_TICKET: "Ticket assegnato",
+  CHANGE_TICKET_STATUS: "Status ticket cambiato",
+  CREATE_MESSAGE: "Messaggio creato",
+  UPLOADED_ATTACHMENT: "Allegato caricato",
+  CREATE_TICKET: "Ticket creato",
+  
+  // Post
+  POST_CREATED: "Post creato",
+  POSTED: "Post pubblicato",
+  EDITED_POST: "Post modificato",
+  DELETED_POST: "Post eliminato",
+  PROGRAM_DELETED_POST: "Post programmato eliminazione",
+  USER_VOTED_POST: "Voto registrato",
+  
+  // Documenti
+  UPLOADED: "Caricato",
+  UPDATED_VERSION: "Versione aggiornata",
+  DELETED_DOCUMENT: "Documento eliminato",
+  PROGRAM_DELETED_DOCUMENT: "Doc. programmato eliminazione",
+  DOCUMENT_UPDATED_STATUS: "Status documento cambiato",
+  
+  // Abbonamenti e Pagamenti
+  SUBSCRIPTION_STARTED: "Abbonamento iniziato",
+  SUBSCRIPTION_CANCELLED: "Abbonamento cancellato",
+  PAYMENT_RECEIVED: "Pagamento ricevuto",
+};
+
+// Mappa traduzioni per EntityType
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  CONDOMINIUM: "Condominio",
+  USER: "Utente",
+  INVITE: "Invito",
+  TICKET: "Ticket",
+  POST: "Post",
+  DOCUMENT: "Documento",
+  DOCUMENT_VERSION: "Versione documento",
+  SUBSCRIPTION: "Abbonamento",
+  PAYMENT: "Pagamento",
+};
+
 // Mappa icone (supporta tutti i tipi)
 const getActivityIcon = (entityType: string, activityType: string) => {
   const key = `${entityType}_${activityType}`;
   const map: Record<string, { icon: any; bg: string; color: string }> = {
+    // USER
     USER_CREATED: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
     USER_UPDATED: { icon: User, bg: "bg-amber-500/15", color: "text-amber-600" },
     USER_DELETED: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
-    USER_LOGIN: { icon: User, bg: "bg-primary/15", color: "text-primary" },
-    USER_LOGOUT: { icon: User, bg: "bg-muted/20", color: "text-muted-foreground" },
     USER_JOINED: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
     USER_LEFT: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
     USER_REMOVED: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
     USER_ROLE_CHANGED: { icon: User, bg: "bg-amber-500/15", color: "text-amber-600" },
 
+    // CONDOMINIUM
     CONDOMINIUM_CREATED: { icon: Home, bg: "bg-emerald-500/15", color: "text-emerald-600" },
     CONDOMINIUM_UPDATED: { icon: Home, bg: "bg-amber-500/15", color: "text-amber-600" },
     CONDOMINIUM_DELETED: { icon: Home, bg: "bg-rose-500/15", color: "text-rose-600" },
 
-    TICKET_CREATED: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
-    TICKET_UPDATED: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
-    TICKET_CLOSED: { icon: CheckCircle, bg: "bg-emerald-500/15", color: "text-emerald-600" },
-    TICKET_OPENED: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
-    TICKET_REOPENED: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
-    TICKET_ASSIGNED: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
-    TICKET_COMMENTED: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
+    // TICKET
+    TICKET_ASSIGN_TICKET: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
+    TICKET_CHANGE_TICKET_STATUS: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
+    TICKET_CREATE_MESSAGE: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
+    TICKET_UPLOADED_ATTACHMENT: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
+    TICKET_CREATE_TICKET: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
 
-    POST_CREATED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
-    POST_UPDATED: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
-    POST_DELETED: { icon: FileText, bg: "bg-rose-500/15", color: "text-rose-600" },
+    // POST
+    POST_POST_CREATED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
     POST_POSTED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
     POST_EDITED_POST: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
     POST_DELETED_POST: { icon: FileText, bg: "bg-rose-500/15", color: "text-rose-600" },
+    POST_PROGRAM_DELETED_POST: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
+    POST_USER_VOTED_POST: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
 
+    // DOCUMENT
     DOCUMENT_UPLOADED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
     DOCUMENT_UPDATED_VERSION: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
     DOCUMENT_DELETED_DOCUMENT: { icon: FileText, bg: "bg-rose-500/15", color: "text-rose-600" },
+    DOCUMENT_PROGRAM_DELETED_DOCUMENT: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
+    DOCUMENT_DOCUMENT_UPDATED_STATUS: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
 
-    SETTINGS_CHANGED: { icon: Settings, bg: "bg-muted/20", color: "text-muted-foreground" },
-
+    // INVITE
     INVITE_INVITED: { icon: User, bg: "bg-primary/15", color: "text-primary" },
     INVITE_ACCEPTED_INVITE: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
     INVITE_DECLINED_INVITE: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
 
-    SUBSCRIPTION_SUBSCRIPTION_STARTED: { icon: Settings, bg: "bg-primary/15", color: "text-primary" },
-    SUBSCRIPTION_SUBSCRIPTION_CANCELLED: { icon: Settings, bg: "bg-rose-500/15", color: "text-rose-600" },
-    PAYMENT_PAYMENT_RECEIVED: { icon: Settings, bg: "bg-emerald-500/15", color: "text-emerald-600" },
+    // SUBSCRIPTION
+    SUBSCRIPTION_SUBSCRIPTION_STARTED: { icon: CreditCard, bg: "bg-emerald-500/15", color: "text-emerald-600" },
+    SUBSCRIPTION_SUBSCRIPTION_CANCELLED: { icon: CreditCard, bg: "bg-rose-500/15", color: "text-rose-600" },
+
+    // PAYMENT
+    PAYMENT_PAYMENT_RECEIVED: { icon: DollarSign, bg: "bg-emerald-500/15", color: "text-emerald-600" },
   };
   return map[key] || { icon: Clock, bg: "bg-muted/20", color: "text-muted-foreground" };
 };
@@ -90,18 +158,27 @@ const formatActivityText = (activity: FetchActivityResponseDto) => {
     LEFT: "ha lasciato",
     REMOVED: "è stato rimosso",
     ROLE_CHANGED: "ha cambiato ruolo",
-    OPENED: "è stato aperto",
-    CLOSED: "è stato chiuso",
-    REOPENED: "è stato riaperto",
-    ASSIGNED: "è stato assegnato",
-    COMMENTED: "ha commentato",
-    POSTED: "ha pubblicato",
-    EDITED_POST: "ha modificato un post",
-    DELETED_POST: "ha eliminato un post",
+    ASSIGN_TICKET: "è stato assegnato",
+    CHANGE_TICKET_STATUS: "ha cambiato status",
+    CREATE_MESSAGE: "ha inviato un messaggio",
+    UPLOADED_ATTACHMENT: "ha caricato un allegato",
+    CREATE_TICKET: "è stato creato",
+    POST_CREATED: "è stato creato",
+    POSTED: "è stato pubblicato",
+    EDITED_POST: "è stato modificato",
+    DELETED_POST: "è stato eliminato",
+    PROGRAM_DELETED_POST: "programmato per eliminazione",
+    USER_VOTED_POST: "ha votato",
     UPLOADED: "è stato caricato",
     UPDATED_VERSION: "ha aggiornato la versione",
-    DELETED_DOCUMENT: "ha eliminato il documento",
+    DELETED_DOCUMENT: "è stato eliminato",
+    PROGRAM_DELETED_DOCUMENT: "programmato per eliminazione",
+    DOCUMENT_UPDATED_STATUS: "ha cambiato status",
+    SUBSCRIPTION_STARTED: "abbonamento iniziato",
+    SUBSCRIPTION_CANCELLED: "abbonamento cancellato",
+    PAYMENT_RECEIVED: "pagamento ricevuto",
   };
+  
   const action = actionMap[activityType] || activityType.toLowerCase();
   const entity = entityType.toLowerCase();
   return `Un ${entity} ${action}`;
@@ -404,7 +481,6 @@ export default function AdminRecentActivities({
                   </span>
                 )}
               </CardTitle>
-              {/* Pulsante Info */}
               <button
                 onClick={() => setShowInfoModal(true)}
                 className="p-1 rounded-full hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
@@ -461,8 +537,9 @@ export default function AdminRecentActivities({
             {selectedIds.length} di {condominiums.length} selezionati
           </div>
 
-          {/* Filtri aggiuntivi */}
+          {/* Filtri aggiuntivi con optgroup */}
           <div className="mt-3 pt-2 border-t border-border/30 flex flex-wrap items-end gap-3">
+            {/* Tipo evento */}
             <div>
               <label htmlFor="activityType" className="text-xs font-medium text-muted-foreground block mb-0.5">
                 Tipo evento
@@ -471,35 +548,56 @@ export default function AdminRecentActivities({
                 id="activityType"
                 value={activityTypeFilter}
                 onChange={(e) => setActivityTypeFilter(e.target.value)}
-                className="h-8 rounded-md border border-border/50 bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-8 rounded-md border border-border/50 bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-w-[180px]"
               >
                 <option value="">Tutti</option>
-                <option value="CREATED">Creato</option>
-                <option value="UPDATED">Aggiornato</option>
-                <option value="DELETED">Eliminato</option>
-                <option value="ARCHIVED">Archiviato</option>
-                <option value="RESTORED">Ripristinato</option>
-                <option value="INVITED">Invitato</option>
-                <option value="ACCEPTED_INVITE">Invito accettato</option>
-                <option value="DECLINED_INVITE">Invito rifiutato</option>
-                <option value="JOINED">Unito</option>
-                <option value="LEFT">Lasciato</option>
-                <option value="REMOVED">Rimosso</option>
-                <option value="ROLE_CHANGED">Ruolo cambiato</option>
-                <option value="OPENED">Aperto</option>
-                <option value="CLOSED">Chiuso</option>
-                <option value="REOPENED">Riaperto</option>
-                <option value="ASSIGNED">Assegnato</option>
-                <option value="COMMENTED">Commentato</option>
-                <option value="POSTED">Pubblicato</option>
-                <option value="EDITED_POST">Post modificato</option>
-                <option value="DELETED_POST">Post eliminato</option>
-                <option value="UPLOADED">Caricato</option>
-                <option value="UPDATED_VERSION">Versione aggiornata</option>
-                <option value="DELETED_DOCUMENT">Documento eliminato</option>
+                <optgroup label="📋 Generali">
+                  <option value="CREATED">Creato</option>
+                  <option value="UPDATED">Aggiornato</option>
+                  <option value="DELETED">Eliminato</option>
+                  <option value="ARCHIVED">Archiviato</option>
+                  <option value="RESTORED">Ripristinato</option>
+                </optgroup>
+                <optgroup label="👥 Utenti & Inviti">
+                  <option value="INVITED">Invitato</option>
+                  <option value="ACCEPTED_INVITE">Invito accettato</option>
+                  <option value="DECLINED_INVITE">Invito rifiutato</option>
+                  <option value="JOINED">Unito</option>
+                  <option value="LEFT">Lasciato</option>
+                  <option value="REMOVED">Rimosso</option>
+                  <option value="ROLE_CHANGED">Ruolo cambiato</option>
+                </optgroup>
+                <optgroup label="🎫 Ticket">
+                  <option value="ASSIGN_TICKET">Ticket assegnato</option>
+                  <option value="CHANGE_TICKET_STATUS">Status ticket cambiato</option>
+                  <option value="CREATE_MESSAGE">Messaggio creato</option>
+                  <option value="UPLOADED_ATTACHMENT">Allegato caricato</option>
+                  <option value="CREATE_TICKET">Ticket creato</option>
+                </optgroup>
+                <optgroup label="📝 Post">
+                  <option value="POST_CREATED">Post creato</option>
+                  <option value="POSTED">Post pubblicato</option>
+                  <option value="EDITED_POST">Post modificato</option>
+                  <option value="DELETED_POST">Post eliminato</option>
+                  <option value="PROGRAM_DELETED_POST">Post programmato eliminazione</option>
+                  <option value="USER_VOTED_POST">Voto registrato</option>
+                </optgroup>
+                <optgroup label="📄 Documenti">
+                  <option value="UPLOADED">Caricato</option>
+                  <option value="UPDATED_VERSION">Versione aggiornata</option>
+                  <option value="DELETED_DOCUMENT">Documento eliminato</option>
+                  <option value="PROGRAM_DELETED_DOCUMENT">Doc. programmato eliminazione</option>
+                  <option value="DOCUMENT_UPDATED_STATUS">Status documento cambiato</option>
+                </optgroup>
+                <optgroup label="💳 Abbonamenti">
+                  <option value="SUBSCRIPTION_STARTED">Abbonamento iniziato</option>
+                  <option value="SUBSCRIPTION_CANCELLED">Abbonamento cancellato</option>
+                  <option value="PAYMENT_RECEIVED">Pagamento ricevuto</option>
+                </optgroup>
               </select>
             </div>
 
+            {/* Entità */}
             <div>
               <label htmlFor="entityType" className="text-xs font-medium text-muted-foreground block mb-0.5">
                 Entità
@@ -508,22 +606,25 @@ export default function AdminRecentActivities({
                 id="entityType"
                 value={entityTypeFilter}
                 onChange={(e) => setEntityTypeFilter(e.target.value)}
-                className="h-8 rounded-md border border-border/50 bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                className="h-8 rounded-md border border-border/50 bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-w-[150px]"
               >
                 <option value="">Tutte</option>
-                <option value="CONDOMINIUM">Condominio</option>
-                <option value="USER">Utente</option>
-                <option value="INVITE">Invito</option>
-                <option value="TICKET">Ticket</option>
-                <option value="POST">Post</option>
-                <option value="DOCUMENT">Documento</option>
-                <option value="DOCUMENT_VERSION">Versione documento</option>
+                <option value="CONDOMINIUM">🏢 Condominio</option>
+                <option value="USER">👤 Utente</option>
+                <option value="INVITE">📧 Invito</option>
+                <option value="TICKET">🎫 Ticket</option>
+                <option value="POST">📝 Post</option>
+                <option value="DOCUMENT">📄 Documento</option>
+                <option value="DOCUMENT_VERSION">📄 Versione documento</option>
+                <option value="SUBSCRIPTION">💳 Abbonamento</option>
+                <option value="PAYMENT">💰 Pagamento</option>
               </select>
             </div>
 
+            {/* Descrizione */}
             <div>
               <label htmlFor="description" className="text-xs font-medium text-muted-foreground block mb-0.5">
-                Descrizione
+                Cerca
               </label>
               <input
                 id="description"
@@ -535,6 +636,7 @@ export default function AdminRecentActivities({
               />
             </div>
 
+            {/* Da data */}
             <div>
               <label htmlFor="fromDate" className="text-xs font-medium text-muted-foreground block mb-0.5">
                 Da data
@@ -548,6 +650,7 @@ export default function AdminRecentActivities({
               />
             </div>
 
+            {/* A data */}
             <div>
               <label htmlFor="toDate" className="text-xs font-medium text-muted-foreground block mb-0.5">
                 A data
@@ -561,6 +664,7 @@ export default function AdminRecentActivities({
               />
             </div>
 
+            {/* Pulsanti azione */}
             <div className="flex gap-2">
               <button
                 onClick={applyFilters}
