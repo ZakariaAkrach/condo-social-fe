@@ -17,6 +17,8 @@ import {
   Trash2,
   CreditCard,
   DollarSign,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { formatDistanceToNow } from "date-fns";
@@ -26,50 +28,41 @@ import type { CondominiumDto } from "@/app/api/condominium";
 
 // Mappa traduzioni per ActivityType
 const ACTIVITY_TYPE_LABELS: Record<string, string> = {
-  // Generali
-  CREATED: "Creato",
-  UPDATED: "Aggiornato",
-  DELETED: "Eliminato",
-  ARCHIVED: "Archiviato",
-  RESTORED: "Ripristinato",
+  // Condominio
+  CONDOMINIUM_CREATED: "Condominio creato",
+  CONDOMINIUM_UPDATED: "Condominio aggiornato",
   
   // Inviti
-  INVITED: "Invitato",
   ACCEPTED_INVITE: "Invito accettato",
-  DECLINED_INVITE: "Invito rifiutato",
   
   // Utenti
-  JOINED: "Unito",
-  LEFT: "Lasciato",
-  REMOVED: "Rimosso",
-  ROLE_CHANGED: "Ruolo cambiato",
+  USER_JOINED: "Utente unito",
+  USER_CREATED: "Utente creato",
+  USER_UPDATED: "Utente aggiornato",
+  USER_DELETED: "Utente eliminato",
+  USER_INVITED: "Utente invitato",
   
   // Ticket
-  ASSIGN_TICKET: "Ticket assegnato",
-  CHANGE_TICKET_STATUS: "Status ticket cambiato",
-  CREATE_MESSAGE: "Messaggio creato",
-  UPLOADED_ATTACHMENT: "Allegato caricato",
-  CREATE_TICKET: "Ticket creato",
+  TICKET_ASSIGN: "Ticket assegnato",
+  TICKET_CHANGE_STATUS: "Status ticket cambiato",
+  TICKET_CREATE_MESSAGE: "Messaggio creato",
+  TICKET_UPLOADED_ATTACHMENT: "Allegato caricato",
+  TICKET_CREATED: "Ticket creato",
   
   // Post
   POST_CREATED: "Post creato",
-  POSTED: "Post pubblicato",
-  EDITED_POST: "Post modificato",
-  DELETED_POST: "Post eliminato",
-  PROGRAM_DELETED_POST: "Post programmato eliminazione",
-  USER_VOTED_POST: "Voto registrato",
+  POST_EDITED: "Post modificato",
+  POST_DELETED: "Post eliminato",
+  POST_PROGRAM_DELETED: "Post programmato eliminazione",
+  POST_USER_VOTED: "Voto registrato",
   
   // Documenti
-  UPLOADED: "Caricato",
-  UPDATED_VERSION: "Versione aggiornata",
-  DELETED_DOCUMENT: "Documento eliminato",
-  PROGRAM_DELETED_DOCUMENT: "Doc. programmato eliminazione",
+  DOCUMENT_UPLOADED: "Documento caricato",
+  DOCUMENT_UPDATED_VERSION: "Versione aggiornata",
+  DOCUMENT_DELETED: "Documento eliminato",
+  DOCUMENT_PROGRAM_DELETED: "Doc. programmato eliminazione",
   DOCUMENT_UPDATED_STATUS: "Status documento cambiato",
-  
-  // Abbonamenti e Pagamenti
-  SUBSCRIPTION_STARTED: "Abbonamento iniziato",
-  SUBSCRIPTION_CANCELLED: "Abbonamento cancellato",
-  PAYMENT_RECEIVED: "Pagamento ricevuto",
+  DOCUMENT_UPDATED_VISIBILITY: "Visibilità documento cambiata",
 };
 
 // Mappa traduzioni per EntityType
@@ -81,8 +74,6 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   POST: "Post",
   DOCUMENT: "Documento",
   DOCUMENT_VERSION: "Versione documento",
-  SUBSCRIPTION: "Abbonamento",
-  PAYMENT: "Pagamento",
 };
 
 // Mappa icone (supporta tutti i tipi)
@@ -90,52 +81,41 @@ const getActivityIcon = (entityType: string, activityType: string) => {
   const key = `${entityType}_${activityType}`;
   const map: Record<string, { icon: any; bg: string; color: string }> = {
     // USER
-    USER_CREATED: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
-    USER_UPDATED: { icon: User, bg: "bg-amber-500/15", color: "text-amber-600" },
-    USER_DELETED: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
-    USER_JOINED: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
-    USER_LEFT: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
-    USER_REMOVED: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
-    USER_ROLE_CHANGED: { icon: User, bg: "bg-amber-500/15", color: "text-amber-600" },
+    USER_USER_CREATED: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
+    USER_USER_UPDATED: { icon: User, bg: "bg-amber-500/15", color: "text-amber-600" },
+    USER_USER_DELETED: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
+    USER_USER_JOINED: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
+    USER_USER_INVITED: { icon: User, bg: "bg-primary/15", color: "text-primary" },
 
     // CONDOMINIUM
-    CONDOMINIUM_CREATED: { icon: Home, bg: "bg-emerald-500/15", color: "text-emerald-600" },
-    CONDOMINIUM_UPDATED: { icon: Home, bg: "bg-amber-500/15", color: "text-amber-600" },
-    CONDOMINIUM_DELETED: { icon: Home, bg: "bg-rose-500/15", color: "text-rose-600" },
+    CONDOMINIUM_CONDOMINIUM_CREATED: { icon: Home, bg: "bg-emerald-500/15", color: "text-emerald-600" },
+    CONDOMINIUM_CONDOMINIUM_UPDATED: { icon: Home, bg: "bg-amber-500/15", color: "text-amber-600" },
+    CONDOMINIUM_CONDOMINIUM_DELETED: { icon: Home, bg: "bg-rose-500/15", color: "text-rose-600" },
 
     // TICKET
-    TICKET_ASSIGN_TICKET: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
-    TICKET_CHANGE_TICKET_STATUS: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
-    TICKET_CREATE_MESSAGE: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
-    TICKET_UPLOADED_ATTACHMENT: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
-    TICKET_CREATE_TICKET: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
+    TICKET_TICKET_ASSIGN: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
+    TICKET_TICKET_CHANGE_STATUS: { icon: MessageSquare, bg: "bg-amber-500/15", color: "text-amber-600" },
+    TICKET_TICKET_CREATE_MESSAGE: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
+    TICKET_TICKET_UPLOADED_ATTACHMENT: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
+    TICKET_TICKET_CREATED: { icon: MessageSquare, bg: "bg-primary/15", color: "text-primary" },
 
     // POST
     POST_POST_CREATED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
-    POST_POSTED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
-    POST_EDITED_POST: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
-    POST_DELETED_POST: { icon: FileText, bg: "bg-rose-500/15", color: "text-rose-600" },
-    POST_PROGRAM_DELETED_POST: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
-    POST_USER_VOTED_POST: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
+    POST_POST_EDITED: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
+    POST_POST_DELETED: { icon: FileText, bg: "bg-rose-500/15", color: "text-rose-600" },
+    POST_POST_PROGRAM_DELETED: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
+    POST_POST_USER_VOTED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
 
     // DOCUMENT
-    DOCUMENT_UPLOADED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
-    DOCUMENT_UPDATED_VERSION: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
-    DOCUMENT_DELETED_DOCUMENT: { icon: FileText, bg: "bg-rose-500/15", color: "text-rose-600" },
-    DOCUMENT_PROGRAM_DELETED_DOCUMENT: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
+    DOCUMENT_DOCUMENT_UPLOADED: { icon: FileText, bg: "bg-primary/15", color: "text-primary" },
+    DOCUMENT_DOCUMENT_UPDATED_VERSION: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
+    DOCUMENT_DOCUMENT_DELETED: { icon: FileText, bg: "bg-rose-500/15", color: "text-rose-600" },
+    DOCUMENT_DOCUMENT_PROGRAM_DELETED: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
     DOCUMENT_DOCUMENT_UPDATED_STATUS: { icon: FileText, bg: "bg-amber-500/15", color: "text-amber-600" },
+    DOCUMENT_DOCUMENT_UPDATED_VISIBILITY: { icon: Eye, bg: "bg-primary/15", color: "text-primary" },
 
     // INVITE
-    INVITE_INVITED: { icon: User, bg: "bg-primary/15", color: "text-primary" },
     INVITE_ACCEPTED_INVITE: { icon: User, bg: "bg-emerald-500/15", color: "text-emerald-600" },
-    INVITE_DECLINED_INVITE: { icon: User, bg: "bg-rose-500/15", color: "text-rose-600" },
-
-    // SUBSCRIPTION
-    SUBSCRIPTION_SUBSCRIPTION_STARTED: { icon: CreditCard, bg: "bg-emerald-500/15", color: "text-emerald-600" },
-    SUBSCRIPTION_SUBSCRIPTION_CANCELLED: { icon: CreditCard, bg: "bg-rose-500/15", color: "text-rose-600" },
-
-    // PAYMENT
-    PAYMENT_PAYMENT_RECEIVED: { icon: DollarSign, bg: "bg-emerald-500/15", color: "text-emerald-600" },
   };
   return map[key] || { icon: Clock, bg: "bg-muted/20", color: "text-muted-foreground" };
 };
@@ -146,37 +126,31 @@ const formatActivityText = (activity: FetchActivityResponseDto) => {
   if (description) return description;
 
   const actionMap: Record<string, string> = {
-    CREATED: "è stato creato",
-    UPDATED: "è stato aggiornato",
-    DELETED: "è stato eliminato",
-    ARCHIVED: "è stato archiviato",
-    RESTORED: "è stato ripristinato",
-    INVITED: "è stato invitato",
+    CONDOMINIUM_CREATED: "è stato creato",
+    CONDOMINIUM_UPDATED: "è stato aggiornato",
+    CONDOMINIUM_DELETED: "è stato eliminato",
     ACCEPTED_INVITE: "ha accettato l'invito",
-    DECLINED_INVITE: "ha rifiutato l'invito",
-    JOINED: "si è unito",
-    LEFT: "ha lasciato",
-    REMOVED: "è stato rimosso",
-    ROLE_CHANGED: "ha cambiato ruolo",
-    ASSIGN_TICKET: "è stato assegnato",
-    CHANGE_TICKET_STATUS: "ha cambiato status",
-    CREATE_MESSAGE: "ha inviato un messaggio",
-    UPLOADED_ATTACHMENT: "ha caricato un allegato",
-    CREATE_TICKET: "è stato creato",
+    USER_JOINED: "si è unito",
+    USER_CREATED: "è stato creato",
+    USER_UPDATED: "è stato aggiornato",
+    USER_DELETED: "è stato eliminato",
+    USER_INVITED: "è stato invitato",
+    TICKET_ASSIGN: "è stato assegnato",
+    TICKET_CHANGE_STATUS: "ha cambiato status",
+    TICKET_CREATE_MESSAGE: "ha inviato un messaggio",
+    TICKET_UPLOADED_ATTACHMENT: "ha caricato un allegato",
+    TICKET_CREATED: "è stato creato",
     POST_CREATED: "è stato creato",
-    POSTED: "è stato pubblicato",
-    EDITED_POST: "è stato modificato",
-    DELETED_POST: "è stato eliminato",
-    PROGRAM_DELETED_POST: "programmato per eliminazione",
-    USER_VOTED_POST: "ha votato",
-    UPLOADED: "è stato caricato",
-    UPDATED_VERSION: "ha aggiornato la versione",
-    DELETED_DOCUMENT: "è stato eliminato",
-    PROGRAM_DELETED_DOCUMENT: "programmato per eliminazione",
+    POST_EDITED: "è stato modificato",
+    POST_DELETED: "è stato eliminato",
+    POST_PROGRAM_DELETED: "programmato per eliminazione",
+    POST_USER_VOTED: "ha votato",
+    DOCUMENT_UPLOADED: "è stato caricato",
+    DOCUMENT_UPDATED_VERSION: "ha aggiornato la versione",
+    DOCUMENT_DELETED: "è stato eliminato",
+    DOCUMENT_PROGRAM_DELETED: "programmato per eliminazione",
     DOCUMENT_UPDATED_STATUS: "ha cambiato status",
-    SUBSCRIPTION_STARTED: "abbonamento iniziato",
-    SUBSCRIPTION_CANCELLED: "abbonamento cancellato",
-    PAYMENT_RECEIVED: "pagamento ricevuto",
+    DOCUMENT_UPDATED_VISIBILITY: "ha cambiato visibilità",
   };
   
   const action = actionMap[activityType] || activityType.toLowerCase();
@@ -551,48 +525,39 @@ export default function AdminRecentActivities({
                 className="h-8 rounded-md border border-border/50 bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary min-w-[180px]"
               >
                 <option value="">Tutti</option>
-                <optgroup label="📋 Generali">
-                  <option value="CREATED">Creato</option>
-                  <option value="UPDATED">Aggiornato</option>
-                  <option value="DELETED">Eliminato</option>
-                  <option value="ARCHIVED">Archiviato</option>
-                  <option value="RESTORED">Ripristinato</option>
+                <optgroup label="🏢 Condominio">
+                  <option value="CONDOMINIUM_CREATED">Condominio creato</option>
+                  <option value="CONDOMINIUM_UPDATED">Condominio aggiornato</option>
                 </optgroup>
                 <optgroup label="👥 Utenti & Inviti">
-                  <option value="INVITED">Invitato</option>
+                  <option value="USER_CREATED">Utente creato</option>
+                  <option value="USER_UPDATED">Utente aggiornato</option>
+                  <option value="USER_DELETED">Utente eliminato</option>
+                  <option value="USER_JOINED">Utente unito</option>
+                  <option value="USER_INVITED">Utente invitato</option>
                   <option value="ACCEPTED_INVITE">Invito accettato</option>
-                  <option value="DECLINED_INVITE">Invito rifiutato</option>
-                  <option value="JOINED">Unito</option>
-                  <option value="LEFT">Lasciato</option>
-                  <option value="REMOVED">Rimosso</option>
-                  <option value="ROLE_CHANGED">Ruolo cambiato</option>
                 </optgroup>
                 <optgroup label="🎫 Ticket">
-                  <option value="ASSIGN_TICKET">Ticket assegnato</option>
-                  <option value="CHANGE_TICKET_STATUS">Status ticket cambiato</option>
-                  <option value="CREATE_MESSAGE">Messaggio creato</option>
-                  <option value="UPLOADED_ATTACHMENT">Allegato caricato</option>
-                  <option value="CREATE_TICKET">Ticket creato</option>
+                  <option value="TICKET_ASSIGN">Ticket assegnato</option>
+                  <option value="TICKET_CHANGE_STATUS">Status ticket cambiato</option>
+                  <option value="TICKET_CREATE_MESSAGE">Messaggio creato</option>
+                  <option value="TICKET_UPLOADED_ATTACHMENT">Allegato caricato</option>
+                  <option value="TICKET_CREATED">Ticket creato</option>
                 </optgroup>
                 <optgroup label="📝 Post">
                   <option value="POST_CREATED">Post creato</option>
-                  <option value="POSTED">Post pubblicato</option>
-                  <option value="EDITED_POST">Post modificato</option>
-                  <option value="DELETED_POST">Post eliminato</option>
-                  <option value="PROGRAM_DELETED_POST">Post programmato eliminazione</option>
-                  <option value="USER_VOTED_POST">Voto registrato</option>
+                  <option value="POST_EDITED">Post modificato</option>
+                  <option value="POST_DELETED">Post eliminato</option>
+                  <option value="POST_PROGRAM_DELETED">Post programmato eliminazione</option>
+                  <option value="POST_USER_VOTED">Voto registrato</option>
                 </optgroup>
                 <optgroup label="📄 Documenti">
-                  <option value="UPLOADED">Caricato</option>
-                  <option value="UPDATED_VERSION">Versione aggiornata</option>
-                  <option value="DELETED_DOCUMENT">Documento eliminato</option>
-                  <option value="PROGRAM_DELETED_DOCUMENT">Doc. programmato eliminazione</option>
+                  <option value="DOCUMENT_UPLOADED">Documento caricato</option>
+                  <option value="DOCUMENT_UPDATED_VERSION">Versione aggiornata</option>
+                  <option value="DOCUMENT_DELETED">Documento eliminato</option>
+                  <option value="DOCUMENT_PROGRAM_DELETED">Doc. programmato eliminazione</option>
                   <option value="DOCUMENT_UPDATED_STATUS">Status documento cambiato</option>
-                </optgroup>
-                <optgroup label="💳 Abbonamenti">
-                  <option value="SUBSCRIPTION_STARTED">Abbonamento iniziato</option>
-                  <option value="SUBSCRIPTION_CANCELLED">Abbonamento cancellato</option>
-                  <option value="PAYMENT_RECEIVED">Pagamento ricevuto</option>
+                  <option value="DOCUMENT_UPDATED_VISIBILITY">Visibilità documento cambiata</option>
                 </optgroup>
               </select>
             </div>
@@ -616,8 +581,6 @@ export default function AdminRecentActivities({
                 <option value="POST">📝 Post</option>
                 <option value="DOCUMENT">📄 Documento</option>
                 <option value="DOCUMENT_VERSION">📄 Versione documento</option>
-                <option value="SUBSCRIPTION">💳 Abbonamento</option>
-                <option value="PAYMENT">💰 Pagamento</option>
               </select>
             </div>
 
@@ -768,7 +731,7 @@ export default function AdminRecentActivities({
                             <span>{formatTimeAgo(activity.createdAt)}</span>
                             <span>•</span>
                             <span className="capitalize">
-                              {activity.entityType.toLowerCase()}
+                              {ENTITY_TYPE_LABELS[activity.entityType] || activity.entityType.toLowerCase()}
                             </span>
                           </div>
                         </div>
