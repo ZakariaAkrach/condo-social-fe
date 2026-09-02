@@ -41,6 +41,7 @@ export interface CreatePostRequest {
     question: string;
     optionTexts: string[];
   };
+  notifyImmediately?: boolean;
 }
 
 export interface BulkPostDeleteRequest {

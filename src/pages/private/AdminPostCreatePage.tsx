@@ -22,6 +22,9 @@ import {
   Undo,
   Redo,
   Strikethrough,
+  Bell,
+  BellOff,
+  Info,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -95,6 +98,7 @@ export default function AdminPostCreatePage() {
   const [bodyHtml, setBodyHtml] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "DRAFT">("DRAFT");
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
+  const [notifyImmediately, setNotifyImmediately] = useState(false);
 
   const [hasPoll, setHasPoll] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
@@ -327,6 +331,7 @@ export default function AdminPostCreatePage() {
         title: title.trim(),
         body: bodyContent,
         status,
+        notifyImmediately,
       };
 
       if (selectedDocuments.length > 0) {
@@ -343,7 +348,17 @@ export default function AdminPostCreatePage() {
       }
 
       await postAdminApi.createPost(condominiumId, data);
-      toast.success("Post creato con successo!");
+      
+      let notificationMessage = "";
+      if (status === "ACTIVE" && notifyImmediately) {
+        notificationMessage = "I residenti riceveranno una notifica immediata!";
+      } else if (status === "ACTIVE" && !notifyImmediately) {
+        notificationMessage = "I residenti riceveranno la notifica nel prossimo digest giornaliero.";
+      } else {
+        notificationMessage = "Il post è stato salvato come bozza. Le notifiche verranno inviate quando il post verrà pubblicato.";
+      }
+      
+      toast.success(`Post creato con successo! ${notificationMessage}`);
       navigate(`/admin/condomini/${condominiumId}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message || "Errore durante la creazione del post";
@@ -527,41 +542,177 @@ export default function AdminPostCreatePage() {
 
             <Separator />
 
-            {/* Stato */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex-1 space-y-2">
-                <Label htmlFor="status" className="text-sm font-medium">Stato di pubblicazione</Label>
-                <Select
-                  value={status}
-                  onValueChange={(val) => setStatus(val as "ACTIVE" | "DRAFT")}
-                >
-                  <SelectTrigger id="status" className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Seleziona lo stato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DRAFT">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-yellow-500" />
-                        Bozza
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="ACTIVE">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500" />
-                        Pubblica subito
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg flex-1">
-                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                <div>
-                  {status === "DRAFT"
-                    ? "Il post sarà salvato come bozza e visibile solo agli amministratori."
-                    : "Il post sarà immediatamente visibile a tutti i residenti del condominio."}
+            {/* Stato e Notifiche */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="status" className="text-sm font-medium">Stato di pubblicazione</Label>
+                  <Select
+                    value={status}
+                    onValueChange={(val) => setStatus(val as "ACTIVE" | "DRAFT")}
+                  >
+                    <SelectTrigger id="status" className="w-full sm:w-[200px]">
+                      <SelectValue placeholder="Seleziona lo stato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DRAFT">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-yellow-500" />
+                          Bozza
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="ACTIVE">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-green-500" />
+                          Pubblica subito
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg flex-1">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    {status === "DRAFT"
+                      ? "Il post sarà salvato come bozza e visibile solo agli amministratori."
+                      : "Il post sarà immediatamente visibile a tutti i residenti del condominio."}
+                  </div>
                 </div>
               </div>
+
+              {/* Notify Immediately - visibile ma non cliccabile in DRAFT */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 rounded-lg border-2 bg-card">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="notify-immediately"
+                      checked={notifyImmediately}
+                      onCheckedChange={status === "ACTIVE" ? setNotifyImmediately : undefined}
+                      disabled={status === "DRAFT"}
+                      className={status === "DRAFT" ? "opacity-50 cursor-not-allowed" : ""}
+                    />
+                    <Label 
+                      htmlFor="notify-immediately" 
+                      className={`text-sm font-medium cursor-pointer ${status === "DRAFT" ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                    >
+                      {notifyImmediately ? (
+                        <span className="flex items-center gap-1 text-primary">
+                          <Bell className="h-4 w-4" />
+                          Notifica immediata
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <BellOff className="h-4 w-4" />
+                          Notifica nel digest
+                        </span>
+                      )}
+                    </Label>
+                  </div>
+                  <div className="h-8 w-px bg-border hidden sm:block" />
+                  <div className="flex-1">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {notifyImmediately ? (
+                        <>
+                          <span className="font-medium text-primary">⚡ Notifica immediata</span>
+                          <br />
+                          I residenti riceveranno una notifica push subito dopo la pubblicazione.
+                          <span className="block text-yellow-600 font-medium mt-1">
+                            ⚠️ Utilizza solo per comunicazioni urgenti e importanti
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-medium">📅 Digest giornaliero</span>
+                          <br />
+                          I residenti riceveranno la notifica nel prossimo riepilogo giornaliero.
+                          <span className="block text-muted-foreground mt-1">
+                            ✓ Opzione consigliata per le comunicazioni ordinarie
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <Badge 
+                  variant={notifyImmediately ? "destructive" : "outline"} 
+                  className={`shrink-0 gap-1 h-7 ${status === "DRAFT" ? "opacity-50" : ""}`}
+                >
+                  {notifyImmediately ? (
+                    <>🔔 Immediata</>
+                  ) : (
+                    <>📅 Digest</>
+                  )}
+                </Badge>
+              </div>
+
+              {/* Info aggiuntiva quando è DRAFT */}
+{status === "DRAFT" && (
+  <>
+    <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-800">
+      <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+      <div className="space-y-1">
+        <p className="text-xs text-blue-700 dark:text-blue-300">
+          <span className="font-semibold">🔒 Opzioni di notifica bloccate:</span> Per configurare le notifiche, imposta lo stato su <span className="font-semibold">"Pubblica subito"</span>.
+        </p>
+        <p className="text-xs text-blue-600 dark:text-blue-400">
+          <span className="font-medium">📌 Nota:</span> La notifica può essere inviata <span className="font-semibold">solo al momento della creazione</span> del post.
+        </p>
+      </div>
+    </div>
+
+    <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/20 dark:border-amber-800">
+      <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+      <div className="space-y-1">
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          <span className="font-semibold">💡 Come funziona:</span>
+        </p>
+        <ul className="text-xs text-amber-700 dark:text-amber-300 space-y-1 list-disc list-inside">
+          <li>
+            <span className="font-medium">✅ "Pubblica subito" + "Notifica immediata" attiva:</span> i residenti ricevono <span className="font-semibold">subito</span> una notifica push
+          </li>
+          <li>
+            <span className="font-medium">📧 "Pubblica subito" + "Notifica nel digest":</span> i residenti ricevono la notifica nel <span className="font-semibold">prossimo digest giornaliero</span> via email
+          </li>
+          <li>
+            <span className="font-medium">📝 Se salvi come "Bozza":</span> i residenti riceveranno comunque una notifica via email nel <span className="font-semibold">digest giornaliero</span> dopo la pubblicazione, <span className="font-semibold">MA non immediatamente</span>
+          </li>
+        </ul>
+        <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+          <span className="font-semibold">⚠️ Importante:</span> La notifica immediata funziona <span className="font-semibold">solo se il post viene creato direttamente come "Pubblica subito"</span> con l'opzione attivata. Se crei una bozza, anche attivando l'opzione dopo, la notifica arriverà solo via email nel digest.
+        </p>
+      </div>
+    </div>
+  </>
+)}
+
+{/* Info aggiuntiva quando è ACTIVE */}
+{status === "ACTIVE" && (
+  <div className="flex items-start gap-2 p-3 rounded-lg bg-green-50 border border-green-200 dark:bg-green-950/20 dark:border-green-800">
+    <Info className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+    <div className="space-y-1">
+      <p className="text-xs text-green-700 dark:text-green-300">
+        <span className="font-semibold">📢 Il post verrà pubblicato subito.</span>
+      </p>
+      <div className="flex flex-col gap-1">
+        <p className="text-xs text-green-700 dark:text-green-300">
+          {notifyImmediately ? (
+            <>
+              <span className="font-semibold text-green-800 dark:text-green-200">⚡ Notifica immediata:</span> i residenti riceveranno <span className="font-semibold">subito</span> una notifica push.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold">📅 Notifica nel digest:</span> i residenti riceveranno la notifica nel <span className="font-semibold">prossimo digest giornaliero</span> via email.
+            </>
+          )}
+        </p>
+        <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+          <span className="font-medium">✅ Ricorda:</span> La scelta della notifica viene valutata <span className="font-semibold">solo al momento della creazione</span>. 
+          Se crei una bozza ora, i residenti riceveranno comunque la notifica via email nel digest, <span className="font-semibold">ma non immediatamente</span>.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
             </div>
           </CardContent>
         </Card>
@@ -758,6 +909,14 @@ export default function AdminPostCreatePage() {
                     {status === "ACTIVE" ? <Send className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
                     {status === "ACTIVE" ? "Pubblicato" : "Bozza"}
                   </Badge>
+                  <Badge 
+                    variant={notifyImmediately ? "destructive" : "outline"} 
+                    className={`gap-1 ${status === "DRAFT" ? "opacity-50" : ""}`}
+                  >
+                    {notifyImmediately ? <Bell className="h-3 w-3" /> : <BellOff className="h-3 w-3" />}
+                    {notifyImmediately ? "Notifica immediata" : "Digest giornaliero"}
+                    {status === "DRAFT" && " (bloccato)"}
+                  </Badge>
                   {hasPoll && (
                     <Badge variant="outline" className="gap-1">
                       <BarChart3 className="h-3 w-3" />
@@ -806,7 +965,7 @@ export default function AdminPostCreatePage() {
                   ) : (
                     <>
                       <Send className="h-4 w-4" />
-                      Pubblica Post
+                      {status === "ACTIVE" ? "Pubblica Post" : "Salva Bozza"}
                     </>
                   )}
                 </Button>
