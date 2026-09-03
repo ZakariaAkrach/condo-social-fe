@@ -1,4 +1,5 @@
 // pages/private/resident/ResidentTicketDetailPage.tsx
+
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
@@ -35,6 +36,7 @@ import {
   type TicketStatus,
 } from "@/app/api/ticketResident";
 import { TicketUploadDialog } from "@/components/residentDashboard/TicketUploadDialog";
+import { useAuth } from "@/auth/AuthProvider";
 
 const STATUS_CONFIG: Record<
   TicketStatus,
@@ -57,6 +59,7 @@ export default function ResidentTicketDetailPage() {
   const { ticketId } = useParams<{ ticketId: string }>();
   const { condominiumId } = useCondominium();
   const navigate = useNavigate();
+  const { profile } = useAuth();
 
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [messages, setMessages] = useState<TicketMessage[]>([]);
@@ -69,13 +72,11 @@ export default function ResidentTicketDetailPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [showAttachments, setShowAttachments] = useState(true);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [tempMessages, setTempMessages] = useState<TicketMessage[]>([]);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   // Detect keyboard on mobile
   useEffect(() => {
@@ -114,40 +115,27 @@ export default function ResidentTicketDetailPage() {
 
   // --- Fetch messages ---
   const fetchMessages = useCallback(
-    async (reset = true) => {
+    async () => {
       if (!condominiumId || !ticketId) return;
-      if (reset) {
-        setPage(0);
-        setMessages([]);
-        setHasMore(true);
-      }
-      if (!hasMore) return;
       setLoadingMessages(true);
       try {
         const res = await ticketResidentApi.fetchMessages(condominiumId, ticketId, {
-          page: reset ? 0 : page,
-          size: 20,
+          page: 0,
+          size: 1000, // Carica tutti i messaggi
           sortBy: "createdAt",
           ascending: true,
         });
         const newMessages = res.data || [];
-        if (reset) {
-          setMessages(newMessages);
-        } else {
-          setMessages((prev) => [...prev, ...newMessages]);
-        }
-        setHasMore(newMessages.length === 20);
-        setPage((prev) => prev + 1);
-        if (reset && newMessages.length > 0) {
-          setTimeout(scrollToBottom, 150);
-        }
+        // Combina con i messaggi temporanei
+        const allMessages = [...newMessages, ...tempMessages];
+        setMessages(allMessages);
       } catch (error: any) {
         toast.error("Errore nel caricamento dei messaggi");
       } finally {
         setLoadingMessages(false);
       }
     },
-    [condominiumId, ticketId, page, hasMore, scrollToBottom]
+    [condominiumId, ticketId, tempMessages]
   );
 
   // --- Fetch attachments ---
@@ -173,32 +161,67 @@ export default function ResidentTicketDetailPage() {
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
-      await Promise.all([fetchTicketDetail(), fetchMessages(true), fetchAttachments()]);
+      await Promise.all([fetchTicketDetail(), fetchMessages(), fetchAttachments()]);
       setLoading(false);
-      setIsFirstLoad(false);
     };
     loadAll();
   }, [condominiumId, ticketId]);
 
+  // Scroll to bottom when messages change
   useEffect(() => {
-    if (!isFirstLoad) {
+    if (!loading) {
       setTimeout(scrollToBottom, 100);
     }
-  }, [messages, scrollToBottom, isFirstLoad]);
+  }, [messages, loading, scrollToBottom]);
 
-  // --- Send message ---
+  // --- Send message (Optimistic) ---
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !ticket || sending) return;
+    
+    const messageText = newMessage;
     setSending(true);
+    
+    // Create a temporary message
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage: TicketMessage = {
+      id: tempId,
+      firstName: profile?.firstName || "Me",
+      lastName: profile?.lastName || "",
+      message: messageText,
+      createdAt: new Date().toISOString(),
+    };
+    
+    // Add to temp messages
+    setTempMessages((prev) => [...prev, tempMessage]);
+    
+    // Add to visible messages
+    setMessages((prev) => [...prev, tempMessage]);
+    setNewMessage("");
+    
+    // Scroll to bottom to show the new message
+    setTimeout(scrollToBottom, 100);
+    
     try {
-      await ticketResidentApi.createMessage(condominiumId!, ticket.id, { message: newMessage });
-      setNewMessage("");
-      await fetchMessages(true);
+      await ticketResidentApi.createMessage(condominiumId!, ticket.id, { 
+        message: messageText 
+      });
+      
+      // Remove temp message and reload
+      setTempMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      
+      // Reload messages
+      await fetchMessages();
+      
       toast.success("Messaggio inviato");
+      
       if (inputRef.current) {
         inputRef.current.focus();
       }
     } catch (error: any) {
+      // Remove the temporary message on error
+      setTempMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      setMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      
       const msg = error?.response?.data?.message || "Errore nell'invio del messaggio";
       toast.error(msg);
     } finally {
@@ -250,13 +273,6 @@ export default function ResidentTicketDetailPage() {
     }
   };
 
-  // --- Load more messages ---
-  const handleLoadMore = useCallback(() => {
-    if (!loadingMessages && hasMore) {
-      fetchMessages(false);
-    }
-  }, [loadingMessages, hasMore, fetchMessages]);
-
   // Get file icon based on extension
   const getFileIcon = (fileName: string) => {
     const ext = fileName.split(".").pop()?.toLowerCase() || "";
@@ -272,6 +288,15 @@ export default function ResidentTicketDetailPage() {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Helper function to determine if message is from current user
+  const isOwnMessage = (msg: TicketMessage) => {
+    if (!profile) return false;
+    
+    // Compare by name
+    return msg.firstName === profile.firstName && 
+           msg.lastName === profile.lastName;
   };
 
   if (loading) {
@@ -455,12 +480,12 @@ export default function ResidentTicketDetailPage() {
           )
         )}
 
-        {/* Chat - Messaggi */}
+        {/* Chat - Messaggi con scroll nel riquadro */}
         <Card className="flex-1 overflow-hidden flex flex-col shadow-sm min-h-[250px] md:min-h-[300px]">
           <CardContent className="p-0 flex-1 flex flex-col">
             <div
               ref={messagesContainerRef}
-              className="flex-1 overflow-y-auto p-3 md:p-4 space-y-2.5 md:space-y-3"
+              className="flex-1 overflow-y-auto p-3 md:p-4"
             >
               {loadingMessages && messages.length === 0 && (
                 <div className="flex justify-center py-4">
@@ -475,58 +500,66 @@ export default function ResidentTicketDetailPage() {
                   <p className="text-xs">Inizia la conversazione</p>
                 </div>
               ) : (
-                <>
-                  {hasMore && messages.length > 0 && (
-                    <div className="flex justify-center py-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleLoadMore}
-                        disabled={loadingMessages}
-                        className="text-[10px] md:text-xs h-7"
-                      >
-                        {loadingMessages ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          "Carica precedenti"
-                        )}
-                      </Button>
-                    </div>
-                  )}
+                <div className="space-y-2.5 md:space-y-3">
                   {messages.map((msg) => {
-                    const isOwn = msg.firstName === "Me";
+                    // Check if it's a temporary message
+                    const isTemp = msg.id.startsWith('temp-');
+                    // Use the helper function to determine if the message is from the current user
+                    const isOwn = isOwnMessage(msg);
+                    
                     return (
                       <div
                         key={msg.id}
                         className={cn(
-                          "flex flex-col max-w-[90%] md:max-w-[80%]",
-                          isOwn ? "ml-auto items-end" : "mr-auto items-start"
+                          "flex flex-col max-w-[90%] md:max-w-[80%] transition-all duration-300",
+                          isOwn ? "ml-auto items-end" : "mr-auto items-start",
+                          isTemp && "opacity-90 animate-pulse"
                         )}
                       >
                         <div
                           className={cn(
-                            "rounded-2xl px-3.5 md:px-4 py-2 md:py-2.5 text-sm md:text-base break-words",
+                            "rounded-2xl px-3.5 md:px-4 py-2 md:py-2.5 text-sm md:text-base break-words relative",
                             isOwn
                               ? "bg-primary text-primary-foreground rounded-br-none"
-                              : "bg-muted rounded-bl-none"
+                              : "bg-muted rounded-bl-none",
+                            isTemp && "border-2 border-primary/30 shadow-lg"
                           )}
                         >
                           <p className="whitespace-pre-wrap leading-relaxed">
                             {msg.message}
                           </p>
+                          {isTemp && (
+                            <div className="flex items-center gap-1.5 mt-1 text-[10px] opacity-80">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <span>Invio in corso...</span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 text-[10px] md:text-xs text-muted-foreground">
                           <span className="font-medium">
                             {msg.firstName} {msg.lastName}
                           </span>
                           <span>•</span>
-                          <span>{format(new Date(msg.createdAt), "HH:mm")}</span>
+                          <span>
+                            {isTemp 
+                              ? "Invio in corso..." 
+                              : format(new Date(msg.createdAt), "HH:mm")
+                            }
+                          </span>
+                          {isOwn && !isTemp && (
+                            <>
+                              <span>•</span>
+                              <Badge variant="outline" className="text-[10px] h-4 px-1">
+                                Tu
+                              </Badge>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
                   })}
                   <div ref={messagesEndRef} />
-                </>
+                </div>
               )}
             </div>
 
@@ -594,7 +627,7 @@ export default function ResidentTicketDetailPage() {
         ticketId={ticket.id}
         onUploadComplete={() => {
           fetchAttachments();
-          fetchMessages(true);
+          fetchMessages();
         }}
         trigger={null}
       />

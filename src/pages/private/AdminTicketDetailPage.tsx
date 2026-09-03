@@ -1,3 +1,5 @@
+// pages/private/admin/AdminTicketDetailPage.tsx
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
@@ -28,8 +30,6 @@ import {
   Lock,
   Globe,
   Paperclip,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ticketAdminApi } from "@/app/api/ticketAdmin";
@@ -74,6 +74,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const CATEGORY_LABELS: Record<string, string> = {
   MAINTENANCE: "Manutenzione",
@@ -120,18 +121,16 @@ export default function AdminTicketDetailPage() {
 
   const [publicMessages, setPublicMessages] = useState<any[]>([]);
   const [internalMessages, setInternalMessages] = useState<any[]>([]);
+  const [tempPublicMessages, setTempPublicMessages] = useState<any[]>([]);
+  const [tempInternalMessages, setTempInternalMessages] = useState<any[]>([]);
   const [loadingPublic, setLoadingPublic] = useState(true);
   const [loadingInternal, setLoadingInternal] = useState(true);
-  const [publicPage, setPublicPage] = useState(0);
-  const [internalPage, setInternalPage] = useState(0);
-  const [publicTotalPages, setPublicTotalPages] = useState(0);
-  const [internalTotalPages, setInternalTotalPages] = useState(0);
-  const size = 10;
 
   const [attachments, setAttachments] = useState<any[]>([]);
   const [loadingAttachments, setLoadingAttachments] = useState(true);
   const [attPage, setAttPage] = useState(0);
   const [attTotalPages, setAttTotalPages] = useState(0);
+  const attSize = 10;
 
   const [changeStatusDialog, setChangeStatusDialog] = useState<{
     open: boolean;
@@ -147,6 +146,8 @@ export default function AdminTicketDetailPage() {
   const [newPublicMessage, setNewPublicMessage] = useState("");
   const [newInternalMessage, setNewInternalMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sendingPublic, setSendingPublic] = useState(false);
+  const [sendingInternal, setSendingInternal] = useState(false);
 
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -155,6 +156,10 @@ export default function AdminTicketDetailPage() {
     "idle" | "getting-url" | "uploading" | "confirming"
   >("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Refs per lo scroll
+  const publicMessagesEndRef = useRef<HTMLDivElement>(null);
+  const internalMessagesEndRef = useRef<HTMLDivElement>(null);
 
   // Stati per membri
   const [members, setMembers] = useState<FetchMembersResponseDto[]>([]);
@@ -176,51 +181,53 @@ export default function AdminTicketDetailPage() {
   }, [condominiumId, ticketId]);
 
   const fetchPublicMessages = useCallback(
-    async (page = 0) => {
+    async () => {
       if (!condominiumId || !ticketId) return;
       setLoadingPublic(true);
       try {
         const response = await ticketAdminApi.fetchMessages(condominiumId, ticketId, {
-          page,
-          size,
+          page: 0,
+          size: 1000,
           sortBy: "createdAt",
           ascending: true,
           visibility: "PUBLIC",
         });
-        setPublicMessages(response.data || []);
-        setPublicTotalPages(response.totalPages || 0);
-        setPublicPage(page);
+        const messages = response.data || [];
+        // Combina con i messaggi temporanei
+        const allMessages = [...messages, ...tempPublicMessages];
+        setPublicMessages(allMessages);
       } catch (err) {
         toast.error("Errore nel caricamento dei messaggi pubblici");
       } finally {
         setLoadingPublic(false);
       }
     },
-    [condominiumId, ticketId]
+    [condominiumId, ticketId, tempPublicMessages]
   );
 
   const fetchInternalMessages = useCallback(
-    async (page = 0) => {
+    async () => {
       if (!condominiumId || !ticketId) return;
       setLoadingInternal(true);
       try {
         const response = await ticketAdminApi.fetchMessages(condominiumId, ticketId, {
-          page,
-          size,
+          page: 0,
+          size: 1000,
           sortBy: "createdAt",
           ascending: true,
           visibility: "INTERNAL",
         });
-        setInternalMessages(response.data || []);
-        setInternalTotalPages(response.totalPages || 0);
-        setInternalPage(page);
+        const messages = response.data || [];
+        // Combina con i messaggi temporanei
+        const allMessages = [...messages, ...tempInternalMessages];
+        setInternalMessages(allMessages);
       } catch (err) {
         toast.error("Errore nel caricamento dei messaggi interni");
       } finally {
         setLoadingInternal(false);
       }
     },
-    [condominiumId, ticketId]
+    [condominiumId, ticketId, tempInternalMessages]
   );
 
   const fetchAttachments = useCallback(
@@ -230,7 +237,7 @@ export default function AdminTicketDetailPage() {
       try {
         const response = await ticketAdminApi.fetchAttachments(condominiumId, ticketId, {
           page,
-          size,
+          size: attSize,
           sortBy: "createdAt",
           ascending: false,
         });
@@ -270,18 +277,31 @@ export default function AdminTicketDetailPage() {
   useEffect(() => {
     if (condominiumId && ticketId) {
       fetchDetail();
-      fetchPublicMessages(0);
-      fetchInternalMessages(0);
+      fetchPublicMessages();
+      fetchInternalMessages();
       fetchAttachments(0);
     }
   }, [condominiumId, ticketId]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (publicMessagesEndRef.current) {
+      publicMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [publicMessages]);
+
+  useEffect(() => {
+    if (internalMessagesEndRef.current) {
+      internalMessagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [internalMessages]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
       fetchDetail(),
-      fetchPublicMessages(publicPage),
-      fetchInternalMessages(internalPage),
+      fetchPublicMessages(),
+      fetchInternalMessages(),
       fetchAttachments(attPage),
     ]);
     setRefreshing(false);
@@ -299,8 +319,8 @@ export default function AdminTicketDetailPage() {
       toast.success("Stato aggiornato");
       setChangeStatusDialog({ open: false, status: "" });
       fetchDetail();
-      fetchPublicMessages(publicPage);
-      fetchInternalMessages(internalPage);
+      fetchPublicMessages();
+      fetchInternalMessages();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Errore");
     } finally {
@@ -314,7 +334,6 @@ export default function AdminTicketDetailPage() {
     try {
       let emailToAssign = "";
       
-      // Se è "me", usa l'email dell'utente corrente
       if (selectedMember === "me") {
         emailToAssign = user?.email || profile?.email || "";
         if (!emailToAssign) {
@@ -322,7 +341,6 @@ export default function AdminTicketDetailPage() {
           return;
         }
       } else {
-        // Altrimenti cerca tra i membri
         const selectedMemberData = members.find(m => m.memberId === selectedMember);
         if (!selectedMemberData) {
           toast.error("Seleziona un membro valido");
@@ -355,8 +373,8 @@ export default function AdminTicketDetailPage() {
       toast.success("Ticket chiuso con successo");
       setCloseTicketDialog({ open: false });
       fetchDetail();
-      fetchPublicMessages(publicPage);
-      fetchInternalMessages(internalPage);
+      fetchPublicMessages();
+      fetchInternalMessages();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Errore durante la chiusura");
     } finally {
@@ -364,39 +382,85 @@ export default function AdminTicketDetailPage() {
     }
   };
 
+  // --- Send Public Message (Optimistic) ---
   const handleSendPublicMessage = async () => {
-    if (!newPublicMessage.trim()) return;
-    setIsSubmitting(true);
+    if (!newPublicMessage.trim() || sendingPublic) return;
+    
+    const messageText = newPublicMessage;
+    setSendingPublic(true);
+    
+    const tempId = `temp-public-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      firstName: profile?.firstName || "Admin",
+      lastName: profile?.lastName || "",
+      message: messageText,
+      createdAt: new Date().toISOString(),
+      visibility: "PUBLIC",
+    };
+    
+    setTempPublicMessages((prev) => [...prev, tempMessage]);
+    setPublicMessages((prev) => [...prev, tempMessage]);
+    setNewPublicMessage("");
+    
     try {
       await ticketAdminApi.createMessage(condominiumId!, ticketId!, {
-        message: newPublicMessage,
+        message: messageText,
         visibility: "PUBLIC",
       });
+      
+      setTempPublicMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      await fetchPublicMessages();
+      
       toast.success("Messaggio pubblico inviato");
-      setNewPublicMessage("");
-      fetchPublicMessages(publicPage);
     } catch (err: any) {
+      setTempPublicMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      setPublicMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      
       toast.error(err?.response?.data?.message || "Errore");
     } finally {
-      setIsSubmitting(false);
+      setSendingPublic(false);
     }
   };
 
+  // --- Send Internal Message (Optimistic) ---
   const handleSendInternalMessage = async () => {
-    if (!newInternalMessage.trim()) return;
-    setIsSubmitting(true);
+    if (!newInternalMessage.trim() || sendingInternal) return;
+    
+    const messageText = newInternalMessage;
+    setSendingInternal(true);
+    
+    const tempId = `temp-internal-${Date.now()}`;
+    const tempMessage = {
+      id: tempId,
+      firstName: profile?.firstName || "Admin",
+      lastName: profile?.lastName || "",
+      message: messageText,
+      createdAt: new Date().toISOString(),
+      visibility: "INTERNAL",
+    };
+    
+    setTempInternalMessages((prev) => [...prev, tempMessage]);
+    setInternalMessages((prev) => [...prev, tempMessage]);
+    setNewInternalMessage("");
+    
     try {
       await ticketAdminApi.createMessage(condominiumId!, ticketId!, {
-        message: newInternalMessage,
+        message: messageText,
         visibility: "INTERNAL",
       });
+      
+      setTempInternalMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      await fetchInternalMessages();
+      
       toast.success("Messaggio interno inviato");
-      setNewInternalMessage("");
-      fetchInternalMessages(internalPage);
     } catch (err: any) {
+      setTempInternalMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      setInternalMessages((prev) => prev.filter(msg => msg.id !== tempId));
+      
       toast.error(err?.response?.data?.message || "Errore");
     } finally {
-      setIsSubmitting(false);
+      setSendingInternal(false);
     }
   };
 
@@ -496,17 +560,22 @@ export default function AdminTicketDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
+  // Helper per determinare se il messaggio è dell'utente corrente
+  const isOwnMessage = (msg: any) => {
+    if (!profile) return false;
+    return msg.firstName === profile.firstName && 
+           msg.lastName === profile.lastName;
+  };
+
   const renderMessageList = (
     messages: any[],
     loading: boolean,
-    page: number,
-    totalPages: number,
-    onPageChange: (p: number) => void,
-    isInternal: boolean
+    isInternal: boolean,
+    isSending: boolean
   ) => {
-    if (loading) {
+    if (loading && messages.length === 0) {
       return (
-        <div className="space-y-3">
+        <div className="space-y-3 p-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
           ))}
@@ -522,72 +591,70 @@ export default function AdminTicketDetailPage() {
       );
     }
     return (
-      <>
-        <ScrollArea className="h-[400px] pr-4">
-          <div className="space-y-4">
-            {messages.map((msg) => (
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.map((msg) => {
+          const isTemp = msg.id?.startsWith('temp-');
+          const isOwn = isOwnMessage(msg);
+          
+          return (
+            <div
+              key={msg.id}
+              className={cn(
+                "flex flex-col max-w-[85%] transition-all duration-300",
+                isOwn ? "ml-auto items-end" : "mr-auto items-start",
+                isTemp && "opacity-90 animate-pulse"
+              )}
+            >
               <div
-                key={msg.id}
-                className={`flex gap-3 p-3 rounded-lg ${
-                  isInternal ? "bg-amber-50 dark:bg-amber-950/20" : "bg-muted/50"
-                }`}
+                className={cn(
+                  "rounded-2xl px-4 py-2.5 text-sm break-words relative",
+                  isOwn
+                    ? "bg-primary text-primary-foreground rounded-br-none"
+                    : "bg-muted rounded-bl-none",
+                  isTemp && "border-2 border-primary/30 shadow-lg"
+                )}
               >
-                <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="text-xs">
-                    {msg.firstName?.[0]?.toUpperCase()}
-                    {msg.lastName?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm">
-                      {msg.firstName} {msg.lastName}
-                    </span>
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {formatDate(msg.createdAt)}
-                    </span>
-                    {isInternal && (
-                      <Badge variant="outline" className="text-xs">
-                        <Lock className="h-3 w-3 mr-1" />
-                        Interno
-                      </Badge>
-                    )}
+                <p className="whitespace-pre-wrap leading-relaxed">
+                  {msg.message}
+                </p>
+                {isTemp && (
+                  <div className="flex items-center gap-1.5 mt-1 text-[10px] opacity-80">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Invio in corso...</span>
                   </div>
-                  <p className="text-sm mt-1 whitespace-pre-wrap">{msg.message}</p>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
-        </ScrollArea>
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 0}
-              onClick={() => onPageChange(page - 1)}
-              className="gap-1"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Precedente</span>
-            </Button>
-            <span className="text-sm px-2">
-              Pagina {page + 1} di {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages - 1}
-              onClick={() => onPageChange(page + 1)}
-              className="gap-1"
-            >
-              <span className="hidden sm:inline">Successiva</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      </>
+              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-muted-foreground">
+                <span className="font-medium">
+                  {msg.firstName} {msg.lastName}
+                </span>
+                <span>•</span>
+                <span>
+                  {isTemp ? "Invio in corso..." : formatDate(msg.createdAt)}
+                </span>
+                {isInternal && !isTemp && (
+                  <>
+                    <span>•</span>
+                    <Badge variant="outline" className="text-[10px] h-4 px-1">
+                      <Lock className="h-2.5 w-2.5 mr-0.5" />
+                      Interno
+                    </Badge>
+                  </>
+                )}
+                {isOwn && !isTemp && (
+                  <>
+                    <span>•</span>
+                    <Badge variant="outline" className="text-[10px] h-4 px-1">
+                      Tu
+                    </Badge>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <div ref={isInternal ? internalMessagesEndRef : publicMessagesEndRef} />
+      </div>
     );
   };
 
@@ -637,7 +704,6 @@ export default function AdminTicketDetailPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4">
-
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="rounded-lg bg-primary/10 p-2 mt-1">
@@ -765,7 +831,7 @@ export default function AdminTicketDetailPage() {
       </Card>
 
       {/* Messaggi */}
-      <Card>
+      <Card className="flex-1">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Messaggi</CardTitle>
         </CardHeader>
@@ -783,76 +849,86 @@ export default function AdminTicketDetailPage() {
             </TabsList>
             
             <TabsContent value="public" className="space-y-4 mt-0">
-              {renderMessageList(
-                publicMessages,
-                loadingPublic,
-                publicPage,
-                publicTotalPages,
-                fetchPublicMessages,
-                false
-              )}
+              <div className="h-[400px] flex flex-col border rounded-lg bg-background">
+                {renderMessageList(
+                  publicMessages,
+                  loadingPublic,
+                  false,
+                  sendingPublic
+                )}
+              </div>
               <Separator />
               <div className="space-y-2">
                 <Label className="text-sm">Nuovo messaggio pubblico</Label>
-                <Textarea
-                  placeholder="Scrivi un messaggio visibile a tutti..."
-                  value={newPublicMessage}
-                  onChange={(e) => setNewPublicMessage(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-                <div className="flex justify-end">
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Scrivi un messaggio visibile a tutti..."
+                    value={newPublicMessage}
+                    onChange={(e) => setNewPublicMessage(e.target.value)}
+                    rows={2}
+                    className="resize-none flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendPublicMessage();
+                      }
+                    }}
+                  />
                   <Button
                     onClick={handleSendPublicMessage}
-                    disabled={isSubmitting || !newPublicMessage.trim()}
-                    className="gap-2"
+                    disabled={sendingPublic || !newPublicMessage.trim()}
+                    className="gap-2 self-end"
                   >
-                    {isSubmitting ? (
+                    {sendingPublic ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Send className="h-4 w-4" />
                     )}
-                    Invia
                   </Button>
                 </div>
               </div>
             </TabsContent>
             
             <TabsContent value="internal" className="space-y-4 mt-0">
-              {renderMessageList(
-                internalMessages,
-                loadingInternal,
-                internalPage,
-                internalTotalPages,
-                fetchInternalMessages,
-                true
-              )}
+              <div className="h-[400px] flex flex-col border rounded-lg bg-background">
+                {renderMessageList(
+                  internalMessages,
+                  loadingInternal,
+                  true,
+                  sendingInternal
+                )}
+              </div>
               <Separator />
               <div className="space-y-2">
                 <Label className="text-sm flex items-center gap-1">
                   <Lock className="h-3 w-3" />
                   Nuovo messaggio interno
                 </Label>
-                <Textarea
-                  placeholder="Scrivi un messaggio visibile solo agli admin..."
-                  value={newInternalMessage}
-                  onChange={(e) => setNewInternalMessage(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-                <div className="flex justify-end">
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Scrivi un messaggio visibile solo agli admin..."
+                    value={newInternalMessage}
+                    onChange={(e) => setNewInternalMessage(e.target.value)}
+                    rows={2}
+                    className="resize-none flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendInternalMessage();
+                      }
+                    }}
+                  />
                   <Button
                     onClick={handleSendInternalMessage}
-                    disabled={isSubmitting || !newInternalMessage.trim()}
+                    disabled={sendingInternal || !newInternalMessage.trim()}
                     variant="secondary"
-                    className="gap-2"
+                    className="gap-2 self-end"
                   >
-                    {isSubmitting ? (
+                    {sendingInternal ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Send className="h-4 w-4" />
                     )}
-                    Invia
                   </Button>
                 </div>
               </div>
@@ -951,12 +1027,10 @@ export default function AdminTicketDetailPage() {
                     size="sm"
                     disabled={attPage === 0}
                     onClick={() => fetchAttachments(attPage - 1)}
-                    className="gap-1"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    <span className="hidden sm:inline">Precedente</span>
+                    Precedente
                   </Button>
-                  <span className="text-sm px-2">
+                  <span className="text-sm">
                     Pagina {attPage + 1} di {attTotalPages}
                   </span>
                   <Button
@@ -964,10 +1038,8 @@ export default function AdminTicketDetailPage() {
                     size="sm"
                     disabled={attPage >= attTotalPages - 1}
                     onClick={() => fetchAttachments(attPage + 1)}
-                    className="gap-1"
                   >
-                    <span className="hidden sm:inline">Successiva</span>
-                    <ChevronRight className="h-4 w-4" />
+                    Successiva
                   </Button>
                 </div>
               )}

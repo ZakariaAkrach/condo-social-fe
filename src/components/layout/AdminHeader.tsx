@@ -1,7 +1,8 @@
+// src/components/layout/AdminHeader.tsx
 import { Button } from "@/components/ui/button";
 import { Menu, ArrowLeft, ExternalLink } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
-import { cn } from "@/lib/utils";
+import { NotificationBell } from "../common/NotificationBell";
 
 interface HeaderProps {
   isCollapsed: boolean;
@@ -13,26 +14,20 @@ export function AdminHeader({ isCollapsed, setIsCollapsed, setIsMobileOpen }: He
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Funzione per tornare indietro
   const handleGoBack = () => {
-    // Se c'è una history, torna indietro
     if (window.history.length > 1) {
       navigate(-1);
     } else {
-      // Fallback: vai alla dashboard
       navigate("/admin/dashboard");
     }
   };
 
-  // Determina se mostrare il pulsante indietro
   const showBackButton = location.pathname !== "/admin/dashboard";
 
-  // Ottieni il titolo della pagina corrente
   const getPageTitle = () => {
     const path = location.pathname;
     const segments = path.split("/").filter(Boolean);
     
-    // Mappa path a titoli leggibili
     const pathTitles: Record<string, string> = {
       admin: "Dashboard",
       dashboard: "Dashboard",
@@ -44,14 +39,12 @@ export function AdminHeader({ isCollapsed, setIsCollapsed, setIsMobileOpen }: He
       residents: "Residenti",
       settings: "Impostazioni",
       "nuovo-condominio": "Nuovo Condominio",
-      "create": "Nuova Comunicazione",
+      create: "Nuova Comunicazione",
     };
 
-    // Cerca l'ultimo segmento significativo
     for (let i = segments.length - 1; i >= 0; i--) {
       const segment = segments[i];
       
-      // Salta gli ID
       if (/^[0-9a-f-]{8,}$/i.test(segment) || /^\d+$/.test(segment)) {
         continue;
       }
@@ -60,7 +53,6 @@ export function AdminHeader({ isCollapsed, setIsCollapsed, setIsMobileOpen }: He
         return pathTitles[segment];
       }
       
-      // Se non trovato nella mappa, capitalizza
       return segment.charAt(0).toUpperCase() + segment.slice(1);
     }
     
@@ -116,9 +108,12 @@ export function AdminHeader({ isCollapsed, setIsCollapsed, setIsMobileOpen }: He
         </div>
       </div>
 
-      {/* Right side - clean, no clutter */}
+      {/* Right side - con campanella */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-2">
-        {/* Quick actions */}
+        {/* 🔔 Campanella notifiche - modalità admin */}
+        <NotificationBell isAdmin={true} />
+
+        {/* Supporto */}
         <Button
           variant="ghost"
           size="sm"

@@ -1,7 +1,6 @@
 // src/pages/private/AdminResidentsPage.tsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { MembriList } from "@/components/adminDashboard/MembriList";
-import { condominiumApi, type CondominiumDto } from "@/app/api/condominium";
 import {
   Select,
   SelectContent,
@@ -12,36 +11,17 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCondominiumList } from "@/components/common/CondominiumListContext";
 
 export default function AdminResidentsPage() {
-  const [condominiums, setCondominiums] = useState<CondominiumDto[]>([]);
+  const { condominiums, loading, refreshCondominiums } = useCondominiumList();
   const [selectedCondominiumId, setSelectedCondominiumId] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-
-  const fetchCondominiums = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await condominiumApi.fetchCondominiums({
-        page: 0,
-        size: 100,
-        sortBy: "name",
-        ascending: true,
-      });
-      const data = response.data || [];
-      setCondominiums(data);
-      if (data.length > 0) {
-        setSelectedCondominiumId(data[0].id);
-      }
-    } catch (error) {
-      console.error("Errore nel caricamento dei condomini", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    fetchCondominiums();
-  }, [fetchCondominiums]);
+    if (condominiums.length > 0 && !selectedCondominiumId) {
+      setSelectedCondominiumId(condominiums[0].id);
+    }
+  }, [condominiums, selectedCondominiumId]);
 
   if (loading) {
     return (
